@@ -1,5 +1,5 @@
-# 자동 테스트용. 1주차 테스트는 DB 없이 도는 슬라이스 테스트(@WebMvcTest)만 있다.
-# DB 를 쓰는 통합 테스트는 수강 신청 구현 때(3주차) 이 프로필에 설정을 추가한다.
+# 자동 테스트용. DB 를 쓰는 테스트는 @AutoConfigureEmbeddedDatabase 로
+# 테스트 중에만 PostgreSQL 을 띄우므로 접속 정보가 필요 없다.
 logging:
   level:
     root: warn

@@ -27,6 +27,10 @@ dependencies {
     runtimeOnly("org.postgresql:postgresql")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    // Docker 없이 테스트용 PostgreSQL 16을 띄운다 (Testcontainers 대신)
+    testImplementation("io.zonky.test:embedded-database-spring-test:2.8.0")
+    testImplementation("io.zonky.test:embedded-postgres:2.2.2")
+    testImplementation(enforcedPlatform("io.zonky.test.postgres:embedded-postgres-binaries-bom:16.15.0"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
