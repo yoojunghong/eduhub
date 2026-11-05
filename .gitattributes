@@ -1,0 +1,9 @@
+# OS와 core.autocrlf 설정에 상관없이 줄바꿈을 LF로 맞춘다 (Spotless 포맷 검사가 일관되게 동작하도록)
+* text=auto eol=lf
+
+# Windows 배치 파일은 CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 바이너리
+*.jar binary

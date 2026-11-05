@@ -8,7 +8,7 @@ bin/
 *.war
 *.log
 hs_err_pid*
-!gradle/wrapper/gradle-wrapper.jar
+!**/gradle/wrapper/gradle-wrapper.jar
 
 # ===== Node =====
 node_modules/
