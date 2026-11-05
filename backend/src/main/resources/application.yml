@@ -10,6 +10,12 @@ spring:
       # 스키마는 Flyway 마이그레이션으로만 바꾼다
       ddl-auto: validate
 
+  data:
+    web:
+      pageable:
+        # 한 번에 너무 많이 조회하지 않도록 페이지 크기 상한을 둔다 (NFR-02)
+        max-page-size: 50
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

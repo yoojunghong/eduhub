@@ -5,6 +5,7 @@ Spring Boot 3.5, Java 21, Gradle Kotlin DSL. 기본 패키지 `com.example.eduhu
 ## 명령
 - 테스트: `./gradlew test`
 - 포맷: `./gradlew spotlessApply` (검사는 `spotlessCheck`, `check`에 포함)
+- 로컬 실행(DB 설치 없이): `./gradlew bootTestRun` → 내장 PostgreSQL + 샘플 데이터 (`src/test/.../LocalEduhubApplication`)
 - 프로필: `dev`(기본, 로컬 PostgreSQL), `test`(자동 테스트)
 - DB 테스트는 Docker 없이 `@AutoConfigureEmbeddedDatabase(provider = EMBEDDED)`로 PostgreSQL을 띄운다 (Testcontainers 쓰지 않음)
 
