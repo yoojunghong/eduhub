@@ -1,0 +1,5 @@
+# 생성기가 만드는 문서와 스크립트는 쓰지 않는다
+docs/**
+git_push.sh
+.gitignore
+.npmignore

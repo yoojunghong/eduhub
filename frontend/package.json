@@ -1,0 +1,16 @@
+{
+  "name": "eduhub-frontend",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "generate:api": "npm run generate:api -w packages/api-client",
+    "test": "npm test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "devDependencies": {
+    "typescript": "5.9.3"
+  }
+}
