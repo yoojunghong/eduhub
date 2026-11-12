@@ -231,7 +231,7 @@ export const CourseApiAxiosParamCreator = function (configuration?: Configuratio
             };
         },
         /**
-         * 과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50). status=OPEN(기본)은 운영 중만, ALL은 종료 과정까지 (관리 화면)
+         * 과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50). status=OPEN(기본)은 운영 중만, CLOSED는 종료만, ALL은 전체 (관리 화면)
          * @summary 과정 목록 조회
          * @param {string} [keyword] 
          * @param {string} [category] 
@@ -392,7 +392,7 @@ export const CourseApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * 과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50). status=OPEN(기본)은 운영 중만, ALL은 종료 과정까지 (관리 화면)
+         * 과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50). status=OPEN(기본)은 운영 중만, CLOSED는 종료만, ALL은 전체 (관리 화면)
          * @summary 과정 목록 조회
          * @param {string} [keyword] 
          * @param {string} [category] 
@@ -473,7 +473,7 @@ export const CourseApiFactory = function (configuration?: Configuration, basePat
             return localVarFp.getCourse(requestParameters.id, options).then((request) => request(axios, basePath));
         },
         /**
-         * 과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50). status=OPEN(기본)은 운영 중만, ALL은 종료 과정까지 (관리 화면)
+         * 과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50). status=OPEN(기본)은 운영 중만, CLOSED는 종료만, ALL은 전체 (관리 화면)
          * @summary 과정 목록 조회
          * @param {CourseApiGetCoursesRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
@@ -609,7 +609,7 @@ export class CourseApi extends BaseAPI {
     }
 
     /**
-     * 과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50). status=OPEN(기본)은 운영 중만, ALL은 종료 과정까지 (관리 화면)
+     * 과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50). status=OPEN(기본)은 운영 중만, CLOSED는 종료만, ALL은 전체 (관리 화면)
      * @summary 과정 목록 조회
      * @param {CourseApiGetCoursesRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
@@ -633,6 +633,7 @@ export class CourseApi extends BaseAPI {
 
 export const GetCoursesStatusEnum = {
     Open: 'OPEN',
+    Closed: 'CLOSED',
     All: 'ALL',
 } as const;
 export type GetCoursesStatusEnum = typeof GetCoursesStatusEnum[keyof typeof GetCoursesStatusEnum];
@@ -644,10 +645,10 @@ export type GetCoursesStatusEnum = typeof GetCoursesStatusEnum[keyof typeof GetC
 export const EnrollmentApiAxiosParamCreator = function (configuration?: Configuration) {
     return {
         /**
-         * 회차에 수강 신청한다. 자리가 있으면 CONFIRMED, 정원이 차면 WAITING으로 등록한다 (FR-04)
+         * 회차에 수강 신청한다. 자리가 있으면 CONFIRMED, 정원이 차면 WAITING으로 등록한다 (FR-04). X-Employee-Id는 인증 전 임시 방식, 공유 환경 배포 금지
          * @summary 수강 신청
          * @param {number} sessionId 
-         * @param {number} xEmployeeId 
+         * @param {number} xEmployeeId 임시 직원 번호. 인증(NFR-03) 전까지만 쓰며 서버가 검증하지 않는다. TODO(NFR-03)
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
@@ -695,10 +696,10 @@ export const EnrollmentApiFp = function(configuration?: Configuration) {
     const localVarAxiosParamCreator = EnrollmentApiAxiosParamCreator(configuration)
     return {
         /**
-         * 회차에 수강 신청한다. 자리가 있으면 CONFIRMED, 정원이 차면 WAITING으로 등록한다 (FR-04)
+         * 회차에 수강 신청한다. 자리가 있으면 CONFIRMED, 정원이 차면 WAITING으로 등록한다 (FR-04). X-Employee-Id는 인증 전 임시 방식, 공유 환경 배포 금지
          * @summary 수강 신청
          * @param {number} sessionId 
-         * @param {number} xEmployeeId 
+         * @param {number} xEmployeeId 임시 직원 번호. 인증(NFR-03) 전까지만 쓰며 서버가 검증하지 않는다. TODO(NFR-03)
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
@@ -718,7 +719,7 @@ export const EnrollmentApiFactory = function (configuration?: Configuration, bas
     const localVarFp = EnrollmentApiFp(configuration)
     return {
         /**
-         * 회차에 수강 신청한다. 자리가 있으면 CONFIRMED, 정원이 차면 WAITING으로 등록한다 (FR-04)
+         * 회차에 수강 신청한다. 자리가 있으면 CONFIRMED, 정원이 차면 WAITING으로 등록한다 (FR-04). X-Employee-Id는 인증 전 임시 방식, 공유 환경 배포 금지
          * @summary 수강 신청
          * @param {EnrollmentApiEnrollRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
@@ -736,6 +737,9 @@ export const EnrollmentApiFactory = function (configuration?: Configuration, bas
 export interface EnrollmentApiEnrollRequest {
     readonly sessionId: number
 
+    /**
+     * 임시 직원 번호. 인증(NFR-03) 전까지만 쓰며 서버가 검증하지 않는다. TODO(NFR-03)
+     */
     readonly xEmployeeId: number
 }
 
@@ -744,7 +748,7 @@ export interface EnrollmentApiEnrollRequest {
  */
 export class EnrollmentApi extends BaseAPI {
     /**
-     * 회차에 수강 신청한다. 자리가 있으면 CONFIRMED, 정원이 차면 WAITING으로 등록한다 (FR-04)
+     * 회차에 수강 신청한다. 자리가 있으면 CONFIRMED, 정원이 차면 WAITING으로 등록한다 (FR-04). X-Employee-Id는 인증 전 임시 방식, 공유 환경 배포 금지
      * @summary 수강 신청
      * @param {EnrollmentApiEnrollRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.

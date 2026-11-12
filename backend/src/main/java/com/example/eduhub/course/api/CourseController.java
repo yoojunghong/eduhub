@@ -43,7 +43,7 @@ public class CourseController {
       summary = "과정 목록 조회",
       description =
           "과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50)."
-              + " status=OPEN(기본)은 운영 중만, ALL은 종료 과정까지 (관리 화면)")
+              + " status=OPEN(기본)은 운영 중만, CLOSED는 종료만, ALL은 전체 (관리 화면)")
   @GetMapping
   public PageResponse<CourseSummaryResponse> getCourses(
       @RequestParam(required = false) String keyword,

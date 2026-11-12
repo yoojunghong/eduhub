@@ -1,12 +1,15 @@
 import { useState } from 'react';
-import { Link as RouterLink, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import {
   Alert,
   Button,
   Chip,
   CircularProgress,
-  Link,
+  FormControl,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
   Stack,
   Table,
   TableBody,
@@ -15,6 +18,7 @@ import {
   TableHead,
   TablePagination,
   TableRow,
+  TextField,
   Typography,
 } from '@mui/material';
 import { useCourses } from '../../hooks/useCourses';
@@ -27,27 +31,72 @@ export function CourseStatusChip({ status }: { status?: string }) {
   return <Chip size="small" label={closed ? '종료' : '운영 중'} color={closed ? 'default' : 'success'} />;
 }
 
+type StatusFilter = 'ALL' | 'OPEN' | 'CLOSED';
+
 /**
- * 과정 관리 목록 (FR-03). 운영 중·종료 과정을 모두 표로 보여 주고, 제목을 누르면 관리 상세로 간다.
- * 인증·관리자 권한 구분은 이후 회차에 붙인다.
+ * 과정 관리 목록 (FR-03). 검색어·상태로 걸러 표로 보여 주고, 행을 누르면 관리 상세로 간다.
+ * 검색 조건은 "검색" 버튼(또는 Enter)을 눌렀을 때 적용한다. 인증·관리자 권한 구분은 이후 회차에 붙인다.
  */
 export function CourseAdminPage() {
   const navigate = useNavigate();
+  const [keywordInput, setKeywordInput] = useState('');
+  // '' = 고르지 않음(전체). 비워 두면 MUI가 "상태" 라벨을 칸 안에 보여 준다
+  const [statusInput, setStatusInput] = useState<StatusFilter | ''>('');
+  const [query, setQuery] = useState<{ keyword: string; status: StatusFilter }>({ keyword: '', status: 'ALL' });
   const [page, setPage] = useState(0);
   const [size, setSize] = useState(10);
   const [creating, setCreating] = useState(false);
 
-  const courses = useCourses({ status: 'ALL', page, size });
+  const courses = useCourses({ keyword: query.keyword, status: query.status, page, size });
   const { create, saving } = useCreateCourse();
+
+  const search = () => {
+    setQuery({ keyword: keywordInput.trim(), status: statusInput || 'ALL' });
+    setPage(0);
+  };
 
   return (
     <Stack spacing={3}>
       <Stack direction="row" justifyContent="space-between" alignItems="center">
-        <Typography variant="h4" component="h1">
+        <Typography variant="h5" component="h1">
           과정 관리
         </Typography>
-        <Button variant="contained" size="large" onClick={() => setCreating(true)}>
+        <Button variant="contained" onClick={() => setCreating(true)}>
           과정 등록
+        </Button>
+      </Stack>
+
+      <Stack
+        component="form"
+        direction={{ xs: 'column', sm: 'row' }}
+        spacing={2}
+        onSubmit={(e) => {
+          e.preventDefault();
+          search();
+        }}
+      >
+        <TextField
+          placeholder="검색어"
+          inputProps={{ 'aria-label': '검색어' }}
+          value={keywordInput}
+          onChange={(e) => setKeywordInput(e.target.value)}
+          sx={{ flexGrow: 1, bgcolor: 'background.paper' }}
+        />
+        <FormControl sx={{ minWidth: 150, bgcolor: 'background.paper' }}>
+          <InputLabel id="admin-status-label">상태</InputLabel>
+          <Select
+            labelId="admin-status-label"
+            label="상태"
+            value={statusInput}
+            onChange={(e) => setStatusInput(e.target.value as StatusFilter | '')}
+          >
+            <MenuItem value="">전체</MenuItem>
+            <MenuItem value="OPEN">운영 중</MenuItem>
+            <MenuItem value="CLOSED">종료</MenuItem>
+          </Select>
+        </FormControl>
+        <Button type="submit" variant="outlined" sx={{ minWidth: 80 }}>
+          검색
         </Button>
       </Stack>
 
@@ -59,39 +108,40 @@ export function CourseAdminPage() {
             <Table aria-label="과정 목록">
               <TableHead>
                 <TableRow>
-                  <TableCell>제목</TableCell>
-                  <TableCell sx={{ width: 160 }}>분류</TableCell>
-                  <TableCell sx={{ width: 160 }}>상태</TableCell>
-                  <TableCell align="right" sx={{ width: 120 }}>
-                    회차 수
-                  </TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>제목</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '25%' }}>분류</TableCell>
+                  <TableCell sx={{ fontWeight: 600, width: '25%' }}>상태</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
                 {courses.loading ? (
                   <TableRow>
-                    <TableCell colSpan={4} align="center">
+                    <TableCell colSpan={3} align="center">
                       <CircularProgress size={24} />
                     </TableCell>
                   </TableRow>
                 ) : courses.data?.content?.length ? (
                   courses.data.content.map((c) => (
-                    <TableRow key={c.id} hover>
-                      <TableCell>
-                        <Link component={RouterLink} to={`/admin/courses/${c.id}`} underline="hover">
-                          {c.title}
-                        </Link>
-                      </TableCell>
+                    <TableRow
+                      key={c.id}
+                      hover
+                      tabIndex={0}
+                      sx={{ cursor: 'pointer' }}
+                      onClick={() => navigate(`/admin/courses/${c.id}`)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') navigate(`/admin/courses/${c.id}`);
+                      }}
+                    >
+                      <TableCell>{c.title}</TableCell>
                       <TableCell>{c.category}</TableCell>
                       <TableCell>
                         <CourseStatusChip status={c.status} />
                       </TableCell>
-                      <TableCell align="right">{c.sessionCount}</TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={4}>등록된 과정이 없습니다.</TableCell>
+                    <TableCell colSpan={3}>조건에 맞는 과정이 없습니다.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
@@ -108,8 +158,7 @@ export function CourseAdminPage() {
               setSize(Number(e.target.value));
               setPage(0);
             }}
-            labelRowsPerPage="페이지당"
-            labelDisplayedRows={({ from, to, count }) => `${from}-${to} / 전체 ${count}`}
+            labelRowsPerPage="페이지당 행 수"
           />
         </Paper>
       )}

@@ -36,13 +36,15 @@ public class CourseQueryService {
     return search(keyword, category, CourseListFilter.OPEN, pageable);
   }
 
-  /** 관리 화면은 ALL로 종료된 과정까지 함께 본다 (FR-03). */
+  /** 관리 화면은 ALL(전체)·CLOSED(종료만)로 종료된 과정도 본다 (FR-03). */
   public PageResponse<CourseSummaryResponse> search(
       String keyword, String category, CourseListFilter filter, Pageable pageable) {
     List<CourseStatus> statuses =
-        filter == CourseListFilter.ALL
-            ? List.of(CourseStatus.values())
-            : List.of(CourseStatus.OPEN);
+        switch (filter) {
+          case OPEN -> List.of(CourseStatus.OPEN);
+          case CLOSED -> List.of(CourseStatus.CLOSED);
+          case ALL -> List.of(CourseStatus.values());
+        };
     return PageResponse.from(
         courseRepository
             .search(statuses, blankToEmpty(keyword), blankToEmpty(category), pageable)
