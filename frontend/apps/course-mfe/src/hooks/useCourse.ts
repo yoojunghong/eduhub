@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import type { CourseDetailResponse } from '@eduhub/api-client';
 import { courseApi } from '../api/courseApi';
 import { isNotFound } from '../api/errors';
@@ -12,6 +12,7 @@ export function useCourse(id: number) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<unknown>();
   const [notFound, setNotFound] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let ignore = false; // 다른 과정으로 빠르게 옮겨 갈 때, 늦게 도착한 이전 응답은 버린다
@@ -37,7 +38,10 @@ export function useCourse(id: number) {
     return () => {
       ignore = true;
     };
-  }, [id]);
+  }, [id, reloadKey]);
 
-  return { data, loading, error, notFound };
+  /** 신청 뒤 남은 자리를 새로 보려고 같은 과정을 다시 불러온다. */
+  const reload = useCallback(() => setReloadKey((k) => k + 1), []);
+
+  return { data, loading, error, notFound, reload };
 }

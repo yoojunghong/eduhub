@@ -1,17 +1,5 @@
-.gitignore
-.npmignore
-.openapi-generator-ignore
 api.ts
 base.ts
 common.ts
 configuration.ts
-docs/CourseApi.md
-docs/CourseDetailResponse.md
-docs/CourseSummaryResponse.md
-docs/ErrorResponse.md
-docs/HealthControllerApi.md
-docs/HealthResponse.md
-docs/PageResponseCourseSummaryResponse.md
-docs/SessionResponse.md
-git_push.sh
 index.ts

@@ -1,12 +1,68 @@
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { routerFuture } from '../routerFuture';
 import { useCourse } from '../hooks/useCourse';
+import { useEnroll } from '../hooks/useEnroll';
 import { CourseDetailPage } from './CourseDetailPage';
 
-// 화면 테스트는 훅을 mock한다. API 호출 방식은 useCourse.test.ts가 따로 검증한다
+// 화면 테스트는 훅을 mock한다. API 호출 방식은 useCourse.test.ts, useEnroll.test.ts가 따로 검증한다
 jest.mock('../hooks/useCourse');
+jest.mock('../hooks/useEnroll');
 const mockUseCourse = useCourse as jest.Mock;
+const mockUseEnroll = useEnroll as jest.Mock;
+const enroll = jest.fn();
+const reload = jest.fn();
+
+beforeEach(() => {
+  enroll.mockReset();
+  reload.mockReset();
+  mockUseEnroll.mockReturnValue({ enroll, enrollingSessionId: undefined });
+});
+
+const openSession = (remainingSeats: number) =>
+  ({ id: 10, startDate: '2026-12-01', place: '본관 301호', capacity: 20, remainingSeats, status: 'OPEN' });
+
+test('자리가 있으면 신청하고, 확정되면 안내한 뒤 다시 불러온다', async () => {
+  mockUseCourse.mockReturnValue({ ...course([openSession(5)]), reload });
+  enroll.mockResolvedValue({ id: 1, sessionId: 10, status: 'CONFIRMED' });
+  renderPage();
+
+  fireEvent.click(screen.getByRole('button', { name: '신청' }));
+
+  expect(await screen.findByText('수강 신청이 확정되었습니다.')).toBeInTheDocument();
+  expect(enroll).toHaveBeenCalledWith(10);
+  expect(reload).toHaveBeenCalled();
+});
+
+test('남은 자리가 없으면 대기 신청 버튼이고, 대기 등록을 안내한다', async () => {
+  mockUseCourse.mockReturnValue({ ...course([openSession(0)]), reload });
+  enroll.mockResolvedValue({ id: 2, sessionId: 10, status: 'WAITING' });
+  renderPage();
+
+  fireEvent.click(screen.getByRole('button', { name: '대기 신청' }));
+
+  expect(await screen.findByText('정원이 차서 대기자로 등록되었습니다.')).toBeInTheDocument();
+});
+
+test('중복 신청(409)이면 이유를 보여 준다', async () => {
+  mockUseCourse.mockReturnValue({ ...course([openSession(5)]), reload });
+  enroll.mockRejectedValue(
+    Object.assign(new Error('409'), { response: { status: 409, data: { code: 'DUPLICATE_ENROLLMENT' } } }),
+  );
+  renderPage();
+
+  fireEvent.click(screen.getByRole('button', { name: '신청' }));
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('이미 이 과정에 신청(확정·대기)한 내역이 있습니다.');
+  expect(reload).not.toHaveBeenCalled();
+});
+
+test('종료된 회차는 신청 버튼을 막는다', () => {
+  mockUseCourse.mockReturnValue({ ...course([{ ...openSession(5), status: 'CLOSED' }]), reload });
+  renderPage();
+
+  expect(screen.getByRole('button', { name: '신청' })).toBeDisabled();
+});
 
 const renderPage = () =>
   render(

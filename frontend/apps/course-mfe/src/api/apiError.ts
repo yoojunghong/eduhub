@@ -18,6 +18,16 @@ export function apiErrorMessage(error: unknown, fallback = '요청을 처리하�
       return '종료된 과정은 수정하거나 회차를 추가할 수 없습니다.';
     case 'COURSE_NOT_FOUND':
       return '과정을 찾을 수 없습니다.';
+    case 'DUPLICATE_ENROLLMENT':
+      return '이미 이 과정에 신청(확정·대기)한 내역이 있습니다.';
+    case 'SESSION_CLOSED':
+      return '종료된 회차라 신청할 수 없습니다.';
+    case 'ENROLLMENT_PERIOD_ENDED':
+      return '신청 기간이 지났습니다. 회차 시작 전날까지 신청할 수 있습니다.';
+    case 'SESSION_NOT_FOUND':
+      return '회차를 찾을 수 없습니다.';
+    case 'SESSION_BUSY':
+      return '신청이 몰려 있습니다. 잠시 후 다시 시도해 주세요.';
     case 'INVALID_REQUEST':
       return `입력값을 확인해 주세요. (${body.message ?? ''})`;
   }

@@ -48,6 +48,14 @@ export interface CourseUpdateRequest {
     'category': string;
     'description'?: string;
 }
+export interface EnrollmentResponse {
+    'id'?: number;
+    'sessionId'?: number;
+    'courseId'?: number;
+    'employeeId'?: number;
+    'status'?: string;
+    'enrolledAt'?: string;
+}
 export interface ErrorResponse {
     'code'?: string;
     'message'?: string;
@@ -223,17 +231,18 @@ export const CourseApiAxiosParamCreator = function (configuration?: Configuratio
             };
         },
         /**
-         * 운영 중인 과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50)
+         * 과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50). status=OPEN(기본)은 운영 중만, ALL은 종료 과정까지 (관리 화면)
          * @summary 과정 목록 조회
          * @param {string} [keyword] 
          * @param {string} [category] 
+         * @param {GetCoursesStatusEnum} [status] 
          * @param {number} [page] Zero-based page index (0..N)
          * @param {number} [size] The size of the page to be returned
          * @param {Array<string>} [sort] Sorting criteria in the format: property,(asc|desc). Default sort order is ascending. Multiple sort criteria are supported.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        getCourses: async (keyword?: string, category?: string, page?: number, size?: number, sort?: Array<string>, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+        getCourses: async (keyword?: string, category?: string, status?: GetCoursesStatusEnum, page?: number, size?: number, sort?: Array<string>, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
             const localVarPath = `/api/v1/courses`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -252,6 +261,10 @@ export const CourseApiAxiosParamCreator = function (configuration?: Configuratio
 
             if (category !== undefined) {
                 localVarQueryParameter['category'] = category;
+            }
+
+            if (status !== undefined) {
+                localVarQueryParameter['status'] = status;
             }
 
             if (page !== undefined) {
@@ -379,18 +392,19 @@ export const CourseApiFp = function(configuration?: Configuration) {
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
         /**
-         * 운영 중인 과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50)
+         * 과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50). status=OPEN(기본)은 운영 중만, ALL은 종료 과정까지 (관리 화면)
          * @summary 과정 목록 조회
          * @param {string} [keyword] 
          * @param {string} [category] 
+         * @param {GetCoursesStatusEnum} [status] 
          * @param {number} [page] Zero-based page index (0..N)
          * @param {number} [size] The size of the page to be returned
          * @param {Array<string>} [sort] Sorting criteria in the format: property,(asc|desc). Default sort order is ascending. Multiple sort criteria are supported.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async getCourses(keyword?: string, category?: string, page?: number, size?: number, sort?: Array<string>, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<PageResponseCourseSummaryResponse>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.getCourses(keyword, category, page, size, sort, options);
+        async getCourses(keyword?: string, category?: string, status?: GetCoursesStatusEnum, page?: number, size?: number, sort?: Array<string>, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<PageResponseCourseSummaryResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getCourses(keyword, category, status, page, size, sort, options);
             const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
             const localVarOperationServerBasePath = operationServerMap['CourseApi.getCourses']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
@@ -459,14 +473,14 @@ export const CourseApiFactory = function (configuration?: Configuration, basePat
             return localVarFp.getCourse(requestParameters.id, options).then((request) => request(axios, basePath));
         },
         /**
-         * 운영 중인 과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50)
+         * 과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50). status=OPEN(기본)은 운영 중만, ALL은 종료 과정까지 (관리 화면)
          * @summary 과정 목록 조회
          * @param {CourseApiGetCoursesRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
         getCourses(requestParameters: CourseApiGetCoursesRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<PageResponseCourseSummaryResponse> {
-            return localVarFp.getCourses(requestParameters.keyword, requestParameters.category, requestParameters.page, requestParameters.size, requestParameters.sort, options).then((request) => request(axios, basePath));
+            return localVarFp.getCourses(requestParameters.keyword, requestParameters.category, requestParameters.status, requestParameters.page, requestParameters.size, requestParameters.sort, options).then((request) => request(axios, basePath));
         },
         /**
          * 과정명·분류·설명을 수정한다. 종료된 과정은 수정할 수 없다 (FR-03)
@@ -518,6 +532,8 @@ export interface CourseApiGetCoursesRequest {
     readonly keyword?: string
 
     readonly category?: string
+
+    readonly status?: GetCoursesStatusEnum
 
     /**
      * Zero-based page index (0..N)
@@ -593,14 +609,14 @@ export class CourseApi extends BaseAPI {
     }
 
     /**
-     * 운영 중인 과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50)
+     * 과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50). status=OPEN(기본)은 운영 중만, ALL은 종료 과정까지 (관리 화면)
      * @summary 과정 목록 조회
      * @param {CourseApiGetCoursesRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      */
     public getCourses(requestParameters: CourseApiGetCoursesRequest = {}, options?: RawAxiosRequestConfig) {
-        return CourseApiFp(this.configuration).getCourses(requestParameters.keyword, requestParameters.category, requestParameters.page, requestParameters.size, requestParameters.sort, options).then((request) => request(this.axios, this.basePath));
+        return CourseApiFp(this.configuration).getCourses(requestParameters.keyword, requestParameters.category, requestParameters.status, requestParameters.page, requestParameters.size, requestParameters.sort, options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -612,6 +628,130 @@ export class CourseApi extends BaseAPI {
      */
     public updateCourse(requestParameters: CourseApiUpdateCourseRequest, options?: RawAxiosRequestConfig) {
         return CourseApiFp(this.configuration).updateCourse(requestParameters.id, requestParameters.courseUpdateRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+}
+
+export const GetCoursesStatusEnum = {
+    Open: 'OPEN',
+    All: 'ALL',
+} as const;
+export type GetCoursesStatusEnum = typeof GetCoursesStatusEnum[keyof typeof GetCoursesStatusEnum];
+
+
+/**
+ * EnrollmentApi - axios parameter creator
+ */
+export const EnrollmentApiAxiosParamCreator = function (configuration?: Configuration) {
+    return {
+        /**
+         * 회차에 수강 신청한다. 자리가 있으면 CONFIRMED, 정원이 차면 WAITING으로 등록한다 (FR-04)
+         * @summary 수강 신청
+         * @param {number} sessionId 
+         * @param {number} xEmployeeId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        enroll: async (sessionId: number, xEmployeeId: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'sessionId' is not null or undefined
+            assertParamExists('enroll', 'sessionId', sessionId)
+            // verify required parameter 'xEmployeeId' is not null or undefined
+            assertParamExists('enroll', 'xEmployeeId', xEmployeeId)
+            const localVarPath = `/api/v1/sessions/{sessionId}/enrollments`
+                .replace('{sessionId}', encodeURIComponent(String(sessionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            localVarHeaderParameter['Accept'] = '*/*';
+
+            if (xEmployeeId != null) {
+                localVarHeaderParameter['X-Employee-Id'] = typeof xEmployeeId === 'string'
+                    ? xEmployeeId
+                    : JSON.stringify(xEmployeeId, replaceWithSerializableTypeIfNeeded);
+            }
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+    }
+};
+
+/**
+ * EnrollmentApi - functional programming interface
+ */
+export const EnrollmentApiFp = function(configuration?: Configuration) {
+    const localVarAxiosParamCreator = EnrollmentApiAxiosParamCreator(configuration)
+    return {
+        /**
+         * 회차에 수강 신청한다. 자리가 있으면 CONFIRMED, 정원이 차면 WAITING으로 등록한다 (FR-04)
+         * @summary 수강 신청
+         * @param {number} sessionId 
+         * @param {number} xEmployeeId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async enroll(sessionId: number, xEmployeeId: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<EnrollmentResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.enroll(sessionId, xEmployeeId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['EnrollmentApi.enroll']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+    }
+};
+
+/**
+ * EnrollmentApi - factory interface
+ */
+export const EnrollmentApiFactory = function (configuration?: Configuration, basePath?: string, axios?: AxiosInstance) {
+    const localVarFp = EnrollmentApiFp(configuration)
+    return {
+        /**
+         * 회차에 수강 신청한다. 자리가 있으면 CONFIRMED, 정원이 차면 WAITING으로 등록한다 (FR-04)
+         * @summary 수강 신청
+         * @param {EnrollmentApiEnrollRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        enroll(requestParameters: EnrollmentApiEnrollRequest, options?: RawAxiosRequestConfig): AxiosPromise<EnrollmentResponse> {
+            return localVarFp.enroll(requestParameters.sessionId, requestParameters.xEmployeeId, options).then((request) => request(axios, basePath));
+        },
+    };
+};
+
+/**
+ * Request parameters for enroll operation in EnrollmentApi.
+ */
+export interface EnrollmentApiEnrollRequest {
+    readonly sessionId: number
+
+    readonly xEmployeeId: number
+}
+
+/**
+ * EnrollmentApi - object-oriented interface
+ */
+export class EnrollmentApi extends BaseAPI {
+    /**
+     * 회차에 수강 신청한다. 자리가 있으면 CONFIRMED, 정원이 차면 WAITING으로 등록한다 (FR-04)
+     * @summary 수강 신청
+     * @param {EnrollmentApiEnrollRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     */
+    public enroll(requestParameters: EnrollmentApiEnrollRequest, options?: RawAxiosRequestConfig) {
+        return EnrollmentApiFp(this.configuration).enroll(requestParameters.sessionId, requestParameters.xEmployeeId, options).then((request) => request(this.axios, this.basePath));
     }
 }
 

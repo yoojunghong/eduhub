@@ -12,7 +12,10 @@ import {
   TableRow,
   Typography,
 } from '@mui/material';
+import { useState } from 'react';
 import { useCourse } from '../hooks/useCourse';
+import { useEnroll } from '../hooks/useEnroll';
+import { apiErrorMessage } from '../api/apiError';
 
 function BackToList() {
   return (
@@ -34,9 +37,26 @@ export function CourseNotFound() {
 
 /** 과정 상세와 회차 목록(FR-02). */
 export function CourseDetailPage({ id }: { id: number }) {
-  const { data, loading, error, notFound } = useCourse(id);
+  const { data, loading, error, notFound, reload } = useCourse(id);
+  const { enroll, enrollingSessionId } = useEnroll();
+  const [result, setResult] = useState<{ severity: 'success' | 'info' | 'error'; message: string }>();
 
-  if (loading) return <CircularProgress />;
+  const apply = async (sessionId: number) => {
+    setResult(undefined);
+    try {
+      const enrollment = await enroll(sessionId);
+      setResult(
+        enrollment.status === 'WAITING'
+          ? { severity: 'info', message: '정원이 차서 대기자로 등록되었습니다.' }
+          : { severity: 'success', message: '수강 신청이 확정되었습니다.' },
+      );
+      reload(); // 남은 자리를 새로 보여 준다
+    } catch (e) {
+      setResult({ severity: 'error', message: apiErrorMessage(e, '신청하지 못했습니다.') });
+    }
+  };
+
+  if (loading && !data) return <CircularProgress />;
   if (notFound) return <CourseNotFound />;
   if (error || !data)
     return (
@@ -63,6 +83,11 @@ export function CourseDetailPage({ id }: { id: number }) {
       <Typography variant="subtitle1" component="h3">
         회차
       </Typography>
+      {result && (
+        <Alert severity={result.severity} onClose={() => setResult(undefined)}>
+          {result.message}
+        </Alert>
+      )}
       {sessions.length === 0 ? (
         <Typography color="text.secondary">등록된 회차가 없습니다.</Typography>
       ) : (
@@ -74,6 +99,7 @@ export function CourseDetailPage({ id }: { id: number }) {
               <TableCell align="right">정원</TableCell>
               <TableCell align="right">남은 자리</TableCell>
               <TableCell>상태</TableCell>
+              <TableCell align="right">신청</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -94,6 +120,16 @@ export function CourseDetailPage({ id }: { id: number }) {
                     ) : (
                       <Chip size="small" color="success" label="신청 가능" />
                     )}
+                  </TableCell>
+                  <TableCell align="right">
+                    <Button
+                      size="small"
+                      variant={full ? 'outlined' : 'contained'}
+                      disabled={closed || data.status === 'CLOSED' || enrollingSessionId !== undefined}
+                      onClick={() => apply(s.id!)}
+                    >
+                      {full ? '대기 신청' : '신청'}
+                    </Button>
                   </TableCell>
                 </TableRow>
               );
