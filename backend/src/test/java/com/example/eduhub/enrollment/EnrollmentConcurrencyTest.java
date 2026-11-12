@@ -24,12 +24,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /** NFR-01: 동시 신청에도 정원을 넘지 않고, 같은 과정에 진행 중 신청은 1건만 남는다. */
 @SpringBootTest
 @AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.EMBEDDED)
+@Import(PrefilledPoolTestConfig.class)
 @ActiveProfiles("test")
 class EnrollmentConcurrencyTest {
 

@@ -15,6 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -22,6 +23,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /** 설계 2장·5장: 회차 락 대기는 약 3초까지만, 넘으면 PessimisticLockingFailureException(503 SESSION_BUSY). */
 @SpringBootTest
 @AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.EMBEDDED)
+@Import(PrefilledPoolTestConfig.class)
 @ActiveProfiles("test")
 class EnrollmentLockTimeoutTest {
 
