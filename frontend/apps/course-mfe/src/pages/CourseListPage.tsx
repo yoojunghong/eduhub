@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
   CircularProgress,
+  Link,
   MenuItem,
   Stack,
   Table,
@@ -71,7 +73,11 @@ export function CourseListPage() {
           <TableBody>
             {data?.content?.map((c) => (
               <TableRow key={c.id}>
-                <TableCell>{c.title}</TableCell>
+                <TableCell>
+                  <Link component={RouterLink} to={`/courses/${c.id}`}>
+                    {c.title}
+                  </Link>
+                </TableCell>
                 <TableCell>{c.category}</TableCell>
                 <TableCell align="right">{c.sessionCount}</TableCell>
               </TableRow>
