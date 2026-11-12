@@ -46,11 +46,16 @@ public class Course {
     this.description = description;
   }
 
+  /** 과정을 종료하면 회차도 모두 종료한다. 남은 신청 취소(D-04)는 수강 신청(FR-04) 이후에 붙인다. */
   public void close() {
     this.status = CourseStatus.CLOSED;
+    sessions.forEach(CourseSession::close);
   }
 
   public CourseSession addSession(LocalDate startDate, String place, int capacity) {
+    if (status == CourseStatus.CLOSED) {
+      throw new CourseClosedException(id); // 종료된 과정에는 회차를 추가할 수 없다
+    }
     CourseSession session = new CourseSession(this, startDate, place, capacity);
     sessions.add(session);
     return session;

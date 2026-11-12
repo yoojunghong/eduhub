@@ -1,16 +1,22 @@
 package com.example.eduhub.course.api;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.example.eduhub.common.api.PageResponse;
+import com.example.eduhub.course.application.CourseCommandService;
 import com.example.eduhub.course.application.CourseQueryService;
+import com.example.eduhub.course.domain.CourseClosedException;
 import com.example.eduhub.course.domain.CourseNotFoundException;
 import java.time.LocalDate;
 import java.util.List;
@@ -20,6 +26,7 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -30,6 +37,7 @@ class CourseControllerTest {
 
   @Autowired private MockMvc mockMvc;
   @MockitoBean private CourseQueryService courseQueryService;
+  @MockitoBean private CourseCommandService courseCommandService;
 
   @Test
   @DisplayName("목록은 PageResponse 형식으로 돌려준다")
@@ -118,5 +126,105 @@ class CourseControllerTest {
         .perform(get("/api/v1/courses/99"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("COURSE_NOT_FOUND"));
+  }
+
+  @Test
+  @DisplayName("과정을 등록하면 201과 Location 헤더를 돌려준다")
+  void createCourse_returns201() throws Exception {
+    given(courseCommandService.create(any()))
+        .willReturn(new CourseDetailResponse(7L, "새 과정", "BACKEND", null, "OPEN", List.of()));
+
+    mockMvc
+        .perform(
+            post("/api/v1/courses")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"title": "새 과정", "category": "BACKEND"}
+                    """))
+        .andExpect(status().isCreated())
+        .andExpect(header().string("Location", "/api/v1/courses/7"))
+        .andExpect(jsonPath("$.id").value(7));
+  }
+
+  @Test
+  @DisplayName("과정명이 비어 있으면 400 INVALID_REQUEST")
+  void createCourse_blankTitle_returns400() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/courses")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"title": " ", "category": "BACKEND"}
+                    """))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value(containsString("title")));
+  }
+
+  @Test
+  @DisplayName("종료된 과정을 수정하면 409 COURSE_CLOSED")
+  void updateCourse_closed_returns409() throws Exception {
+    given(courseCommandService.update(eq(1L), any())).willThrow(new CourseClosedException(1L));
+
+    mockMvc
+        .perform(
+            put("/api/v1/courses/1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {"title": "수정", "category": "BACKEND"}
+                    """))
+        .andExpect(status().isConflict())
+        .andExpect(jsonPath("$.code").value("COURSE_CLOSED"));
+  }
+
+  @Test
+  @DisplayName("회차를 추가하면 201과 회차를 돌려준다")
+  void addSession_returns201() throws Exception {
+    LocalDate date = LocalDate.now().plusMonths(1);
+    given(courseCommandService.addSession(eq(1L), any()))
+        .willReturn(new SessionResponse(10L, date, "본사 3층", 20, 20, "OPEN"));
+
+    mockMvc
+        .perform(
+            post("/api/v1/courses/1/sessions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(sessionJson(date, 20)))
+        .andExpect(status().isCreated())
+        .andExpect(jsonPath("$.id").value(10));
+  }
+
+  @Test
+  @DisplayName("정원이 0이면 400 INVALID_REQUEST")
+  void addSession_zeroCapacity_returns400() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/courses/1/sessions")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(sessionJson(LocalDate.now().plusMonths(1), 0)))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+        .andExpect(jsonPath("$.message").value(containsString("capacity")));
+  }
+
+  @Test
+  @DisplayName("과정을 종료하면 CLOSED 상태를 돌려준다")
+  void closeCourse_returnsClosed() throws Exception {
+    given(courseCommandService.close(1L))
+        .willReturn(new CourseDetailResponse(1L, "과정", "BACKEND", null, "CLOSED", List.of()));
+
+    mockMvc
+        .perform(post("/api/v1/courses/1/close"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.status").value("CLOSED"));
+  }
+
+  private static String sessionJson(LocalDate startDate, int capacity) {
+    return """
+    {"startDate": "%s", "place": "본사 3층", "capacity": %d}
+    """
+        .formatted(startDate, capacity);
   }
 }
