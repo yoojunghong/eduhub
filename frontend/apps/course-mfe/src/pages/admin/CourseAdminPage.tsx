@@ -1,244 +1,129 @@
 import { useState } from 'react';
+import { Link as RouterLink, useNavigate } from 'react-router-dom';
 import {
   Alert,
-  Box,
   Button,
   Chip,
   CircularProgress,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-  List,
-  ListItemButton,
-  ListItemText,
+  Link,
   Paper,
   Stack,
   Table,
   TableBody,
   TableCell,
+  TableContainer,
   TableHead,
-  TableRow,
   TablePagination,
-  TextField,
+  TableRow,
   Typography,
 } from '@mui/material';
 import { useCourses } from '../../hooks/useCourses';
-import { useCourseAdmin } from '../../hooks/useCourseAdmin';
 import { useCreateCourse } from '../../hooks/useCreateCourse';
-import { apiErrorMessage } from '../../api/apiError';
 import { CourseFormDialog } from './CourseFormDialog';
-import { SessionFormDialog } from './SessionFormDialog';
 
-const PAGE_SIZE = 10;
-
-type DialogKind = 'create' | 'edit' | 'session' | 'close';
+/** 과정 상태 표시. 운영 중은 초록, 종료는 회색. 관리 화면 목록과 상세에서 함께 쓴다. */
+export function CourseStatusChip({ status }: { status?: string }) {
+  const closed = status === 'CLOSED';
+  return <Chip size="small" label={closed ? '종료' : '운영 중'} color={closed ? 'default' : 'success'} />;
+}
 
 /**
- * 과정·회차 관리 화면 (FR-03). 왼쪽에서 과정을 고르고 오른쪽에서 수정·회차 추가·종료한다.
- * 목록 API는 운영 중(OPEN)인 과정만 돌려주므로, 종료한 과정은 선택이 유지되는 동안에만 보인다.
- * 인증·관리자 권한 구분은 4주차 이후에 붙인다.
+ * 과정 관리 목록 (FR-03). 운영 중·종료 과정을 모두 표로 보여 주고, 제목을 누르면 관리 상세로 간다.
+ * 인증·관리자 권한 구분은 이후 회차에 붙인다.
  */
 export function CourseAdminPage() {
-  const [keyword, setKeyword] = useState('');
+  const navigate = useNavigate();
   const [page, setPage] = useState(0);
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [selectedId, setSelectedId] = useState<number>();
-  const [dialog, setDialog] = useState<DialogKind>();
-  const [closeError, setCloseError] = useState<string>();
+  const [size, setSize] = useState(10);
+  const [creating, setCreating] = useState(false);
 
-  const courses = useCourses({ keyword, page, size: PAGE_SIZE, refreshKey });
-  const course = useCourseAdmin(selectedId);
-  const { create, saving: creating } = useCreateCourse();
-
-  const detail = course.data;
-  const closed = detail?.status === 'CLOSED';
-  const refreshList = () => setRefreshKey((k) => k + 1);
-
-  const confirmClose = async () => {
-    setCloseError(undefined);
-    try {
-      await course.close();
-      setDialog(undefined);
-      refreshList(); // 종료한 과정은 목록에서 빠진다
-    } catch (e) {
-      setCloseError(apiErrorMessage(e));
-    }
-  };
+  const courses = useCourses({ status: 'ALL', page, size });
+  const { create, saving } = useCreateCourse();
 
   return (
-    <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} alignItems="flex-start">
-      <Paper variant="outlined" sx={{ p: 2, width: { xs: '100%', md: 320 }, flexShrink: 0 }}>
-        <Stack spacing={2}>
-          <Button variant="contained" onClick={() => setDialog('create')}>
-            새 과정 등록
-          </Button>
-          <TextField
-            label="과정명 검색"
-            size="small"
-            value={keyword}
-            onChange={(e) => {
-              setKeyword(e.target.value);
-              setPage(0);
-            }}
-          />
-          {courses.error ? (
-            <Alert severity="error">과정 목록을 불러오지 못했습니다.</Alert>
-          ) : courses.loading ? (
-            <CircularProgress size={24} />
-          ) : (
-            <List dense disablePadding aria-label="운영 중인 과정">
-              {courses.data?.content?.map((c) => (
-                <ListItemButton
-                  key={c.id}
-                  selected={c.id === selectedId}
-                  onClick={() => setSelectedId(c.id)}
-                >
-                  <ListItemText primary={c.title} secondary={`${c.category} · 회차 ${c.sessionCount}`} />
-                </ListItemButton>
-              ))}
-            </List>
-          )}
-          <TablePagination
-            component="div"
-            count={courses.data?.totalElements ?? 0}
-            page={page}
-            rowsPerPage={PAGE_SIZE}
-            rowsPerPageOptions={[PAGE_SIZE]}
-            onPageChange={(_, p) => setPage(p)}
-            labelDisplayedRows={({ from, to, count }) => `${from}-${to} / ${count}`}
-          />
-        </Stack>
-      </Paper>
+    <Stack spacing={3}>
+      <Stack direction="row" justifyContent="space-between" alignItems="center">
+        <Typography variant="h4" component="h1">
+          과정 관리
+        </Typography>
+        <Button variant="contained" size="large" onClick={() => setCreating(true)}>
+          과정 등록
+        </Button>
+      </Stack>
 
-      <Box sx={{ flexGrow: 1, width: '100%' }}>
-        {selectedId === undefined ? (
-          <Typography color="text.secondary">왼쪽에서 과정을 고르거나 새 과정을 등록하세요.</Typography>
-        ) : course.error ? (
-          <Alert severity="error">{apiErrorMessage(course.error, '과정을 불러오지 못했습니다.')}</Alert>
-        ) : course.loading || !detail ? (
-          <CircularProgress />
-        ) : (
-          <Stack spacing={2}>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Typography variant="h6" component="h2">
-                {detail.title}
-              </Typography>
-              <Chip
-                size="small"
-                label={closed ? '종료' : '운영 중'}
-                color={closed ? 'default' : 'success'}
-              />
-            </Stack>
-            <Typography variant="body2" color="text.secondary">
-              {detail.category}
-            </Typography>
-            {detail.description && <Typography>{detail.description}</Typography>}
-            {closed && <Alert severity="info">종료된 과정은 수정하거나 회차를 추가할 수 없습니다.</Alert>}
-            <Stack direction="row" spacing={1}>
-              <Button variant="outlined" disabled={closed} onClick={() => setDialog('edit')}>
-                수정
-              </Button>
-              <Button variant="outlined" disabled={closed} onClick={() => setDialog('session')}>
-                회차 추가
-              </Button>
-              <Button
-                variant="outlined"
-                color="error"
-                disabled={closed}
-                onClick={() => {
-                  setCloseError(undefined);
-                  setDialog('close');
-                }}
-              >
-                과정 종료
-              </Button>
-            </Stack>
-            <Table size="small" aria-label="회차 목록">
+      {courses.error ? (
+        <Alert severity="error">과정 목록을 불러오지 못했습니다.</Alert>
+      ) : (
+        <Paper>
+          <TableContainer>
+            <Table aria-label="과정 목록">
               <TableHead>
                 <TableRow>
-                  <TableCell>시작일</TableCell>
-                  <TableCell>장소</TableCell>
-                  <TableCell align="right">정원</TableCell>
-                  <TableCell>상태</TableCell>
+                  <TableCell>제목</TableCell>
+                  <TableCell sx={{ width: 160 }}>분류</TableCell>
+                  <TableCell sx={{ width: 160 }}>상태</TableCell>
+                  <TableCell align="right" sx={{ width: 120 }}>
+                    회차 수
+                  </TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
-                {detail.sessions?.length ? (
-                  detail.sessions.map((s) => (
-                    <TableRow key={s.id}>
-                      <TableCell>{s.startDate}</TableCell>
-                      <TableCell>{s.place}</TableCell>
-                      <TableCell align="right">{s.capacity}</TableCell>
-                      <TableCell>{s.status === 'CLOSED' ? '종료' : '모집'}</TableCell>
+                {courses.loading ? (
+                  <TableRow>
+                    <TableCell colSpan={4} align="center">
+                      <CircularProgress size={24} />
+                    </TableCell>
+                  </TableRow>
+                ) : courses.data?.content?.length ? (
+                  courses.data.content.map((c) => (
+                    <TableRow key={c.id} hover>
+                      <TableCell>
+                        <Link component={RouterLink} to={`/admin/courses/${c.id}`} underline="hover">
+                          {c.title}
+                        </Link>
+                      </TableCell>
+                      <TableCell>{c.category}</TableCell>
+                      <TableCell>
+                        <CourseStatusChip status={c.status} />
+                      </TableCell>
+                      <TableCell align="right">{c.sessionCount}</TableCell>
                     </TableRow>
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={4}>등록된 회차가 없습니다.</TableCell>
+                    <TableCell colSpan={4}>등록된 과정이 없습니다.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
             </Table>
-          </Stack>
-        )}
-      </Box>
+          </TableContainer>
+          <TablePagination
+            component="div"
+            count={courses.data?.totalElements ?? 0}
+            page={page}
+            rowsPerPage={size}
+            rowsPerPageOptions={[10, 20, 50]}
+            onPageChange={(_, p) => setPage(p)}
+            onRowsPerPageChange={(e) => {
+              setSize(Number(e.target.value));
+              setPage(0);
+            }}
+            labelRowsPerPage="페이지당"
+            labelDisplayedRows={({ from, to, count }) => `${from}-${to} / 전체 ${count}`}
+          />
+        </Paper>
+      )}
 
       <CourseFormDialog
-        open={dialog === 'create'}
+        open={creating}
         title="과정 등록"
-        saving={creating}
+        saving={saving}
         onSubmit={async (value) => {
           const created = await create(value);
-          refreshList();
-          setSelectedId(created.id);
+          navigate(`/admin/courses/${created.id}`); // 등록하면 바로 회차를 추가할 수 있게 상세로 간다
         }}
-        onClose={() => setDialog(undefined)}
+        onClose={() => setCreating(false)}
       />
-      <CourseFormDialog
-        open={dialog === 'edit'}
-        title="과정 수정"
-        initial={
-          detail
-            ? { title: detail.title ?? '', category: detail.category ?? '', description: detail.description }
-            : undefined
-        }
-        saving={course.saving}
-        onSubmit={async (value) => {
-          await course.update(value);
-          refreshList();
-        }}
-        onClose={() => setDialog(undefined)}
-      />
-      <SessionFormDialog
-        open={dialog === 'session'}
-        saving={course.saving}
-        onSubmit={async (value) => {
-          await course.addSession(value);
-          refreshList(); // 목록의 회차 수를 맞춘다
-        }}
-        onClose={() => setDialog(undefined)}
-      />
-      <Dialog open={dialog === 'close'} onClose={() => setDialog(undefined)}>
-        <DialogTitle>과정 종료</DialogTitle>
-        <DialogContent>
-          {closeError && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {closeError}
-            </Alert>
-          )}
-          <DialogContentText>
-            &lsquo;{detail?.title}&rsquo; 과정과 모든 회차를 종료합니다. 종료한 과정은 다시 열거나 수정할 수 없습니다.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDialog(undefined)}>취소</Button>
-          <Button color="error" variant="contained" disabled={course.saving} onClick={confirmClose}>
-            종료
-          </Button>
-        </DialogActions>
-      </Dialog>
     </Stack>
   );
 }

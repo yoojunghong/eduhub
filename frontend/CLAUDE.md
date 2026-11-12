@@ -2,7 +2,7 @@
 
 npm workspaces: `apps/course-mfe`(React 18 + MUI, Vite), `packages/api-client`(생성 클라이언트).
 
-- 실행: `npm run dev -w apps/course-mfe` → http://localhost:3001 (`/api`는 Vite 프록시로 8080에 전달)
+- 실행: `npm run dev -w apps/course-mfe` → http://localhost:3000 (`/` 목록, `/admin` 과정 관리. `/api`는 Vite 프록시로 8080에 전달)
 - 테스트·타입 검사: `npm test -w apps/course-mfe`, `npm run typecheck -w apps/course-mfe`
 - API 클라이언트 재생성(백엔드 실행 중): `npm run generate:api`. `packages/api-client/src/generated`는 직접 고치지 않는다
 
