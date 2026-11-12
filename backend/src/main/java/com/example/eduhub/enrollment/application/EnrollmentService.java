@@ -15,6 +15,7 @@ import com.example.eduhub.enrollment.domain.SessionNotFoundException;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,6 +24,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @Transactional
 public class EnrollmentService {
+
+  private static final String ACTIVE_UNIQUE_INDEX = "ux_enrollment_active_course";
 
   private final CourseSessionRepository sessionRepository;
   private final EnrollmentRepository enrollmentRepository;
@@ -75,7 +78,27 @@ public class EnrollmentService {
     try {
       return EnrollmentResponse.from(enrollmentRepository.saveAndFlush(enrollment));
     } catch (DataIntegrityViolationException e) {
-      throw new DuplicateEnrollmentException(courseId);
+      // 진행 중 신청 유일 인덱스 위반만 중복으로 본다. 다른 제약 위반은 그대로 던진다
+      if (isActiveEnrollmentViolation(e)) {
+        throw new DuplicateEnrollmentException(courseId);
+      }
+      throw e;
     }
+  }
+
+  private static boolean isActiveEnrollmentViolation(Throwable e) {
+    for (Throwable t = e; t != null; t = t.getCause()) {
+      if (t instanceof ConstraintViolationException cve
+          && ACTIVE_UNIQUE_INDEX.equalsIgnoreCase(cve.getConstraintName())) {
+        return true;
+      }
+      if (t.getMessage() != null && t.getMessage().contains(ACTIVE_UNIQUE_INDEX)) {
+        return true;
+      }
+      if (t.getCause() == t) {
+        break;
+      }
+    }
+    return false;
   }
 }

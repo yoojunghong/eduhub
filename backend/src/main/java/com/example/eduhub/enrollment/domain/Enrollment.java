@@ -1,6 +1,7 @@
 package com.example.eduhub.enrollment.domain;
 
 import com.example.eduhub.course.domain.CourseSession;
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
@@ -11,6 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import java.time.OffsetDateTime;
+import java.util.Objects;
 
 /** 수강 신청. 생성은 {@link #confirm}, {@link #waiting} 정적 팩토리로만 한다. */
 @Entity
@@ -25,18 +27,26 @@ public class Enrollment {
   private CourseSession session;
 
   // 과정 단위 유일 인덱스(D-01)를 위해 회차의 과정 id를 복사해 둔다
+  @Column(nullable = false)
   private Long courseId;
+
+  @Column(nullable = false)
   private Long employeeId;
 
   @Enumerated(EnumType.STRING)
+  @Column(nullable = false)
   private EnrollmentStatus status;
 
+  @Column(nullable = false)
   private OffsetDateTime enrolledAt;
 
   protected Enrollment() {}
 
   private Enrollment(
       CourseSession session, Long employeeId, EnrollmentStatus status, OffsetDateTime now) {
+    Objects.requireNonNull(session, "session");
+    Objects.requireNonNull(employeeId, "employeeId");
+    Objects.requireNonNull(now, "now");
     this.session = session;
     this.courseId = session.getCourse().getId();
     this.employeeId = employeeId;
