@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.example.eduhub.common.api.PageResponse;
 import com.example.eduhub.course.application.CourseCommandService;
+import com.example.eduhub.course.application.CourseListFilter;
 import com.example.eduhub.course.application.CourseQueryService;
 import com.example.eduhub.course.domain.CourseClosedException;
 import com.example.eduhub.course.domain.CourseNotFoundException;
@@ -42,7 +43,7 @@ class CourseControllerTest {
   @Test
   @DisplayName("목록은 PageResponse 형식으로 돌려준다")
   void getCourses_returnsPage() throws Exception {
-    given(courseQueryService.search(any(), any(), any()))
+    given(courseQueryService.search(any(), any(), any(CourseListFilter.class), any()))
         .willReturn(
             new PageResponse<>(
                 List.of(new CourseSummaryResponse(1L, "Spring Boot 입문", "BACKEND", "OPEN", 2)),
@@ -63,7 +64,7 @@ class CourseControllerTest {
   @Test
   @DisplayName("검색 조건과 페이지 번호를 바꾸지 않고 서비스에 넘긴다 (page는 0부터)")
   void getCourses_passesParamsAsIs() throws Exception {
-    given(courseQueryService.search(any(), any(), any()))
+    given(courseQueryService.search(any(), any(), any(CourseListFilter.class), any()))
         .willReturn(new PageResponse<>(List.of(), 2, 5, 0));
 
     mockMvc
@@ -76,21 +77,38 @@ class CourseControllerTest {
         .andExpect(status().isOk());
 
     ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
-    verify(courseQueryService).search(eq("spring"), eq("BACKEND"), pageable.capture());
+    verify(courseQueryService)
+        .search(eq("spring"), eq("BACKEND"), eq(CourseListFilter.OPEN), pageable.capture());
     assertThat(pageable.getValue().getPageNumber()).isEqualTo(2);
     assertThat(pageable.getValue().getPageSize()).isEqualTo(5);
   }
 
   @Test
+  @DisplayName("관리 화면은 status=ALL로 종료 과정까지 요청하고, 모르는 값은 400")
+  void getCourses_statusFilter() throws Exception {
+    given(courseQueryService.search(any(), any(), any(CourseListFilter.class), any()))
+        .willReturn(new PageResponse<>(List.of(), 0, 10, 0));
+
+    mockMvc.perform(get("/api/v1/courses").param("status", "ALL")).andExpect(status().isOk());
+    verify(courseQueryService).search(any(), any(), eq(CourseListFilter.ALL), any());
+
+    mockMvc
+        .perform(get("/api/v1/courses").param("status", "DELETED"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+  }
+
+  @Test
   @DisplayName("페이지 크기는 최대 50으로 제한한다")
   void getCourses_limitsPageSize() throws Exception {
-    given(courseQueryService.search(any(), any(), any()))
+    given(courseQueryService.search(any(), any(), any(CourseListFilter.class), any()))
         .willReturn(new PageResponse<>(List.of(), 0, 50, 0));
 
     mockMvc.perform(get("/api/v1/courses").param("size", "1000")).andExpect(status().isOk());
 
     ArgumentCaptor<Pageable> pageable = ArgumentCaptor.forClass(Pageable.class);
-    verify(courseQueryService).search(any(), any(), pageable.capture());
+    verify(courseQueryService)
+        .search(any(), any(), any(CourseListFilter.class), pageable.capture());
     assertThat(pageable.getValue().getPageSize()).isEqualTo(50);
   }
 

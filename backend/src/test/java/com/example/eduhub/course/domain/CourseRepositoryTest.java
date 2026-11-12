@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import io.zonky.test.db.AutoConfigureEmbeddedDatabase;
 import java.time.LocalDate;
+import java.util.List;
 import org.hibernate.SessionFactory;
 import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.Test;
@@ -119,6 +120,28 @@ class CourseRepositoryTest {
         .containsExactly(3L, 1L, 0L);
     // 목록 1번 + (필요하면) 개수 1번. 과정 수만큼 회차 조회가 더 나가면 N+1 이다 (NFR-02)
     assertThat(statistics.getPrepareStatementCount()).isLessThanOrEqualTo(2);
+  }
+
+  @Test
+  void searchWithAllStatusesIncludesClosedCourses() {
+    persistCourse("Spring Boot 입문", "BACKEND", 1);
+    persistCourse("리더십 101", "COMMON", 0).close();
+    em.flush();
+    em.clear();
+
+    Page<CourseSummaryRow> open =
+        courseRepository.search(CourseStatus.OPEN, "", "", PageRequest.of(0, 10, Sort.by("id")));
+    Page<CourseSummaryRow> all =
+        courseRepository.search(
+            List.of(CourseStatus.values()), "", "", PageRequest.of(0, 10, Sort.by("id")));
+
+    assertThat(open.getContent())
+        .extracting(CourseSummaryRow::title)
+        .containsExactly("Spring Boot 입문");
+    assertThat(all.getContent())
+        .extracting(CourseSummaryRow::title)
+        .containsExactly("Spring Boot 입문", "리더십 101");
+    assertThat(all.getTotalElements()).isEqualTo(2);
   }
 
   private Course persistCourse(String title, String category, int sessionCount) {

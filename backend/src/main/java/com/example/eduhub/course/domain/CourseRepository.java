@@ -1,5 +1,7 @@
 package com.example.eduhub.course.domain;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -19,7 +21,7 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
           select new com.example.eduhub.course.domain.CourseSummaryRow(
               c.id, c.title, c.category, c.status, count(s))
           from Course c left join c.sessions s
-          where c.status = :status
+          where c.status in :statuses
             and lower(c.title) like lower(concat('%', :keyword, '%'))
             and (:category = '' or c.category = :category)
           group by c.id, c.title, c.category, c.status
@@ -27,15 +29,21 @@ public interface CourseRepository extends JpaRepository<Course, Long> {
       countQuery =
           """
           select count(c) from Course c
-          where c.status = :status
+          where c.status in :statuses
             and lower(c.title) like lower(concat('%', :keyword, '%'))
             and (:category = '' or c.category = :category)
           """)
   Page<CourseSummaryRow> search(
-      @Param("status") CourseStatus status,
+      @Param("statuses") Collection<CourseStatus> statuses,
       @Param("keyword") String keyword,
       @Param("category") String category,
       Pageable pageable);
+
+  /** 한 상태만 검색한다 (임직원 목록은 OPEN). */
+  default Page<CourseSummaryRow> search(
+      CourseStatus status, String keyword, String category, Pageable pageable) {
+    return search(List.of(status), keyword, category, pageable);
+  }
 
   @Query("select c from Course c left join fetch c.sessions where c.id = :id")
   Optional<Course> findWithSessionsById(@Param("id") Long id);

@@ -3,6 +3,7 @@ package com.example.eduhub.course.api;
 import com.example.eduhub.common.api.ErrorResponse;
 import com.example.eduhub.common.api.PageResponse;
 import com.example.eduhub.course.application.CourseCommandService;
+import com.example.eduhub.course.application.CourseListFilter;
 import com.example.eduhub.course.application.CourseQueryService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -40,13 +41,16 @@ public class CourseController {
 
   @Operation(
       summary = "과정 목록 조회",
-      description = "운영 중인 과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50)")
+      description =
+          "과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50)."
+              + " status=OPEN(기본)은 운영 중만, ALL은 종료 과정까지 (관리 화면)")
   @GetMapping
   public PageResponse<CourseSummaryResponse> getCourses(
       @RequestParam(required = false) String keyword,
       @RequestParam(required = false) String category,
+      @RequestParam(defaultValue = "OPEN") CourseListFilter status,
       @ParameterObject @PageableDefault(size = 10, sort = "id") Pageable pageable) {
-    return courseQueryService.search(keyword, category, pageable);
+    return courseQueryService.search(keyword, category, status, pageable);
   }
 
   @Operation(summary = "과정 상세 조회", description = "과정 정보와 회차 목록(일정, 장소, 정원, 남은 자리)을 조회한다")

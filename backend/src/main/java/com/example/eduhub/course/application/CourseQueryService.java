@@ -30,12 +30,22 @@ public class CourseQueryService {
     this.enrollmentRepository = enrollmentRepository;
   }
 
-  /** 목록에는 운영 중(OPEN)인 과정만 보여 준다. */
+  /** 임직원 목록: 운영 중(OPEN)인 과정만 보여 준다. */
   public PageResponse<CourseSummaryResponse> search(
       String keyword, String category, Pageable pageable) {
+    return search(keyword, category, CourseListFilter.OPEN, pageable);
+  }
+
+  /** 관리 화면은 ALL로 종료된 과정까지 함께 본다 (FR-03). */
+  public PageResponse<CourseSummaryResponse> search(
+      String keyword, String category, CourseListFilter filter, Pageable pageable) {
+    List<CourseStatus> statuses =
+        filter == CourseListFilter.ALL
+            ? List.of(CourseStatus.values())
+            : List.of(CourseStatus.OPEN);
     return PageResponse.from(
         courseRepository
-            .search(CourseStatus.OPEN, blankToEmpty(keyword), blankToEmpty(category), pageable)
+            .search(statuses, blankToEmpty(keyword), blankToEmpty(category), pageable)
             .map(CourseSummaryResponse::from));
   }
 
