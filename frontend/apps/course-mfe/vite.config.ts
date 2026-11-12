@@ -3,6 +3,12 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  // 목록·상세(index.html)와 관리 화면(admin.html, FR-03)을 각각 빌드한다
+  build: {
+    rollupOptions: {
+      input: { main: 'index.html', admin: 'admin.html' },
+    },
+  },
   server: {
     port: 3001,
     strictPort: true,
