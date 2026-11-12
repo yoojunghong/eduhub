@@ -3,6 +3,7 @@ package com.example.eduhub.enrollment.api;
 import com.example.eduhub.common.api.ErrorResponse;
 import com.example.eduhub.enrollment.application.EnrollmentService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -27,7 +28,9 @@ public class EnrollmentController {
 
   @Operation(
       summary = "수강 신청",
-      description = "회차에 수강 신청한다. 자리가 있으면 CONFIRMED, 정원이 차면 WAITING으로 등록한다 (FR-04)")
+      description =
+          "회차에 수강 신청한다. 자리가 있으면 CONFIRMED, 정원이 차면 WAITING으로 등록한다 (FR-04). "
+              + "X-Employee-Id는 인증 전 임시 방식, 공유 환경 배포 금지")
   @ApiResponse(responseCode = "201", description = "신청 성공 (CONFIRMED 또는 WAITING)")
   @ApiResponse(
       responseCode = "400",
@@ -49,7 +52,10 @@ public class EnrollmentController {
   public ResponseEntity<EnrollmentResponse> enroll(
       @PathVariable Long sessionId,
       // TODO(NFR-03) 인증 도입 시 로그인 사용자 정보로 교체
-      @RequestHeader("X-Employee-Id") @Positive Long employeeId) {
+      @Parameter(description = "임시 직원 번호. 인증(NFR-03) 전까지만 쓰며 서버가 검증하지 않는다. TODO(NFR-03)")
+          @RequestHeader("X-Employee-Id")
+          @Positive
+          Long employeeId) {
     EnrollmentResponse created = enrollmentService.enroll(sessionId, employeeId);
     return ResponseEntity.created(URI.create("/api/v1/enrollments/" + created.id())).body(created);
   }

@@ -3,7 +3,6 @@ package com.example.eduhub.enrollment.application;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.example.eduhub.common.config.ClockConfig;
 import com.example.eduhub.course.domain.Course;
 import com.example.eduhub.course.domain.CourseRepository;
 import com.example.eduhub.course.domain.CourseSession;
@@ -14,22 +13,80 @@ import com.example.eduhub.enrollment.domain.EnrollmentPeriodEndedException;
 import com.example.eduhub.enrollment.domain.SessionClosedException;
 import com.example.eduhub.enrollment.domain.SessionNotFoundException;
 import io.zonky.test.db.AutoConfigureEmbeddedDatabase;
+import java.sql.SQLException;
+import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import org.hibernate.exception.ConstraintViolationException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.boot.test.autoconfigure.orm.jpa.TestEntityManager;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.test.context.ActiveProfiles;
 
 @DataJpaTest
 @AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.EMBEDDED)
 @ActiveProfiles("test")
-@Import({EnrollmentService.class, ClockConfig.class})
+@Import({EnrollmentService.class, EnrollmentServiceTest.FixedClockConfig.class})
 class EnrollmentServiceTest {
 
-  private static final LocalDate NEXT_MONTH = LocalDate.now().plusMonths(1);
+  private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+
+  /** 테스트 시계의 기준 "오늘" (KST). 실제 날짜와 무관하게 고정한다. */
+  private static final LocalDate TODAY = LocalDate.of(2030, 1, 15);
+
+  private static final LocalDate NEXT_MONTH = TODAY.plusMonths(1);
+
+  /** 테스트에서 시각을 바꿀 수 있는 KST 시계. */
+  static class MutableClock extends Clock {
+    private volatile Instant instant;
+
+    MutableClock(Instant instant) {
+      this.instant = instant;
+    }
+
+    void set(ZonedDateTime time) {
+      this.instant = time.toInstant();
+    }
+
+    @Override
+    public ZoneId getZone() {
+      return KST;
+    }
+
+    @Override
+    public Clock withZone(ZoneId zone) {
+      return Clock.fixed(instant, zone);
+    }
+
+    @Override
+    public Instant instant() {
+      return instant;
+    }
+  }
+
+  @TestConfiguration
+  static class FixedClockConfig {
+    @Bean
+    MutableClock clock() {
+      return new MutableClock(TODAY.atTime(10, 0).atZone(KST).toInstant());
+    }
+  }
+
+  @Autowired private MutableClock clock;
+
+  @BeforeEach
+  void resetClock() {
+    clock.set(TODAY.atTime(10, 0).atZone(KST));
+  }
 
   @Autowired private EnrollmentService service;
   @Autowired private CourseRepository courseRepository;
@@ -104,9 +161,9 @@ class EnrollmentServiceTest {
   @Test
   @DisplayName("시작일 당일이거나 지난 회차에는 신청할 수 없다")
   void enroll_periodEnded_throws() {
-    CourseSession today = newSession(newCourse(), LocalDate.now(), 10);
-    CourseSession past = newSession(newCourse(), LocalDate.now().minusDays(3), 10);
-    CourseSession tomorrow = newSession(newCourse(), LocalDate.now().plusDays(1), 10);
+    CourseSession today = newSession(newCourse(), TODAY, 10);
+    CourseSession past = newSession(newCourse(), TODAY.minusDays(3), 10);
+    CourseSession tomorrow = newSession(newCourse(), TODAY.plusDays(1), 10);
 
     assertThatThrownBy(() -> service.enroll(today.getId(), 1L))
         .isInstanceOf(EnrollmentPeriodEndedException.class);
@@ -114,6 +171,43 @@ class EnrollmentServiceTest {
         .isInstanceOf(EnrollmentPeriodEndedException.class);
     // 시작 전날까지는 신청 가능 (D-01)
     assertThat(service.enroll(tomorrow.getId(), 1L).status()).isEqualTo("CONFIRMED");
+  }
+
+  @Test
+  @DisplayName("시작 전날 23:59:59.999 KST 는 신청 가능, 시작 당일 00:00 KST 는 ENROLLMENT_PERIOD_ENDED")
+  void enroll_kstBoundary() {
+    LocalDate start = TODAY.plusDays(10);
+    CourseSession s1 = newSession(newCourse(), start, 10);
+    CourseSession s2 = newSession(newCourse(), start, 10);
+
+    clock.set(start.minusDays(1).atTime(23, 59, 59, 999_000_000).atZone(KST));
+    assertThat(service.enroll(s1.getId(), 1L).status()).isEqualTo("CONFIRMED");
+
+    clock.set(start.atStartOfDay(KST));
+    assertThatThrownBy(() -> service.enroll(s2.getId(), 2L))
+        .isInstanceOf(EnrollmentPeriodEndedException.class);
+  }
+
+  @Test
+  @DisplayName("유일 인덱스 위반만 중복으로 판별하고 다른 제약 위반은 아니다")
+  void isActiveEnrollmentViolation_onlyUniqueIndex() {
+    var other =
+        new DataIntegrityViolationException(
+            "x",
+            new ConstraintViolationException(
+                "other", new SQLException("fk"), "fk_enrollment_session"));
+    var unique =
+        new DataIntegrityViolationException(
+            "y",
+            new ConstraintViolationException(
+                "dup", new SQLException("dup"), "ux_enrollment_active_course"));
+    var uniqueByMessage =
+        new DataIntegrityViolationException(
+            "duplicate key value violates unique constraint \"ux_enrollment_active_course\"");
+
+    assertThat(EnrollmentService.isActiveEnrollmentViolation(other)).isFalse();
+    assertThat(EnrollmentService.isActiveEnrollmentViolation(unique)).isTrue();
+    assertThat(EnrollmentService.isActiveEnrollmentViolation(uniqueByMessage)).isTrue();
   }
 
   @Test

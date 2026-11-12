@@ -1,8 +1,8 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { routerFuture } from '../routerFuture';
 import { useCourse } from '../hooks/useCourse';
-import { useEnroll } from '../hooks/useEnroll';
+import { EnrollInProgressError, useEnroll } from '../hooks/useEnroll';
 import { CourseDetailPage } from './CourseDetailPage';
 
 // 화면 테스트는 훅을 mock한다. API 호출 방식은 useCourse.test.ts, useEnroll.test.ts가 따로 검증한다
@@ -54,6 +54,19 @@ test('중복 신청(409)이면 이유를 보여 준다', async () => {
   fireEvent.click(screen.getByRole('button', { name: '신청' }));
 
   expect(await screen.findByRole('alert')).toHaveTextContent('이미 이 과정에 신청(확정·대기)한 내역이 있습니다.');
+  expect(reload).toHaveBeenCalled(); // 실패 뒤에도 최신 상태로 갱신
+});
+
+test('진행 중 두 번째 클릭은 오류 알림을 띄우지 않는다', async () => {
+  mockUseCourse.mockReturnValue({ ...course([openSession(5)]), reload });
+  enroll.mockRejectedValue(new EnrollInProgressError());
+  renderPage();
+
+  fireEvent.click(screen.getByRole('button', { name: '신청' }));
+
+  await waitFor(() => expect(enroll).toHaveBeenCalledWith(10));
+  await act(async () => {});
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   expect(reload).not.toHaveBeenCalled();
 });
 

@@ -14,7 +14,7 @@ import {
 } from '@mui/material';
 import { useState } from 'react';
 import { useCourse } from '../hooks/useCourse';
-import { useEnroll } from '../hooks/useEnroll';
+import { EnrollInProgressError, useEnroll } from '../hooks/useEnroll';
 import { apiErrorMessage } from '../api/apiError';
 
 function BackToList() {
@@ -52,7 +52,10 @@ export function CourseDetailPage({ id }: { id: number }) {
       );
       reload(); // 남은 자리를 새로 보여 준다
     } catch (e) {
+      // 진행 중 두 번째 클릭: 첫 요청이 처리 중이므로 알림·새로 고침 없이 무시한다
+      if (e instanceof EnrollInProgressError) return;
       setResult({ severity: 'error', message: apiErrorMessage(e, '신청하지 못했습니다.') });
+      reload(); // 실패(409·503 등) 뒤에도 남은 자리·종료 상태를 새로 보여 준다
     }
   };
 

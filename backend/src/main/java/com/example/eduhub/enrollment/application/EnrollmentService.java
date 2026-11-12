@@ -84,13 +84,13 @@ public class EnrollmentService {
     } catch (DataIntegrityViolationException e) {
       // 진행 중 신청 유일 인덱스 위반만 중복으로 본다. 다른 제약 위반은 그대로 던진다
       if (isActiveEnrollmentViolation(e)) {
-        throw new DuplicateEnrollmentException(courseId);
+        throw new DuplicateEnrollmentException(courseId, e);
       }
       throw e;
     }
   }
 
-  private static boolean isActiveEnrollmentViolation(Throwable e) {
+  static boolean isActiveEnrollmentViolation(Throwable e) {
     for (Throwable t = e; t != null; t = t.getCause()) {
       if (t instanceof ConstraintViolationException cve
           && ACTIVE_UNIQUE_INDEX.equalsIgnoreCase(cve.getConstraintName())) {
