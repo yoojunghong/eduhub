@@ -2,13 +2,19 @@ package com.example.eduhub.common.api;
 
 import com.example.eduhub.course.domain.CourseClosedException;
 import com.example.eduhub.course.domain.CourseNotFoundException;
+import com.example.eduhub.enrollment.domain.DuplicateEnrollmentException;
+import com.example.eduhub.enrollment.domain.EnrollmentPeriodEndedException;
+import com.example.eduhub.enrollment.domain.SessionClosedException;
+import com.example.eduhub.enrollment.domain.SessionNotFoundException;
 import java.util.stream.Collectors;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -23,6 +29,43 @@ public class GlobalExceptionHandler {
   @ResponseStatus(HttpStatus.CONFLICT)
   public ErrorResponse handleCourseClosed(CourseClosedException e) {
     return new ErrorResponse("COURSE_CLOSED", e.getMessage());
+  }
+
+  @ExceptionHandler(SessionNotFoundException.class)
+  @ResponseStatus(HttpStatus.NOT_FOUND)
+  public ErrorResponse handleSessionNotFound(SessionNotFoundException e) {
+    return new ErrorResponse("SESSION_NOT_FOUND", e.getMessage());
+  }
+
+  @ExceptionHandler(SessionClosedException.class)
+  @ResponseStatus(HttpStatus.CONFLICT)
+  public ErrorResponse handleSessionClosed(SessionClosedException e) {
+    return new ErrorResponse("SESSION_CLOSED", e.getMessage());
+  }
+
+  @ExceptionHandler(EnrollmentPeriodEndedException.class)
+  @ResponseStatus(HttpStatus.CONFLICT)
+  public ErrorResponse handlePeriodEnded(EnrollmentPeriodEndedException e) {
+    return new ErrorResponse("ENROLLMENT_PERIOD_ENDED", e.getMessage());
+  }
+
+  @ExceptionHandler(DuplicateEnrollmentException.class)
+  @ResponseStatus(HttpStatus.CONFLICT)
+  public ErrorResponse handleDuplicateEnrollment(DuplicateEnrollmentException e) {
+    return new ErrorResponse("DUPLICATE_ENROLLMENT", e.getMessage());
+  }
+
+  /** 임시 인증 헤더(X-Employee-Id) 누락. TODO(NFR-03) 인증 도입 시 재검토 */
+  @ExceptionHandler(MissingRequestHeaderException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  public ErrorResponse handleMissingHeader(MissingRequestHeaderException e) {
+    return new ErrorResponse("INVALID_REQUEST", "필수 헤더가 없습니다: " + e.getHeaderName());
+  }
+
+  @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+  @ResponseStatus(HttpStatus.BAD_REQUEST)
+  public ErrorResponse handleTypeMismatch(MethodArgumentTypeMismatchException e) {
+    return new ErrorResponse("INVALID_REQUEST", "형식이 올바르지 않습니다: " + e.getName());
   }
 
   /** {@code @Valid} 검증 실패. 필드별 메시지를 "필드: 메시지" 형태로 이어 붙인다. */

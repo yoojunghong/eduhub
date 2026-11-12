@@ -31,6 +31,7 @@
 | 409 `SESSION_CLOSED` | 회차 또는 과정이 종료됨 |
 | 409 `ENROLLMENT_PERIOD_ENDED` | 오늘이 회차 시작일 이후 또는 당일 (D-01: 전날까지) |
 | 409 `DUPLICATE_ENROLLMENT` | 같은 과정에 진행 중 신청이 있음 |
+| 503 `SESSION_BUSY` | 회차 락을 3초 안에 얻지 못함 (신청이 몰림. 잠시 후 다시 시도) |
 
 ```json
 // EnrollmentResponse

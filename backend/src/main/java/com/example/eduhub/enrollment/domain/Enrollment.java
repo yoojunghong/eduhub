@@ -1,0 +1,82 @@
+package com.example.eduhub.enrollment.domain;
+
+import com.example.eduhub.course.domain.CourseSession;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import java.time.OffsetDateTime;
+
+/** 수강 신청. 생성은 {@link #confirm}, {@link #waiting} 정적 팩토리로만 한다. */
+@Entity
+public class Enrollment {
+
+  @Id
+  @GeneratedValue(strategy = GenerationType.IDENTITY)
+  private Long id;
+
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "session_id")
+  private CourseSession session;
+
+  // 과정 단위 유일 인덱스(D-01)를 위해 회차의 과정 id를 복사해 둔다
+  private Long courseId;
+  private Long employeeId;
+
+  @Enumerated(EnumType.STRING)
+  private EnrollmentStatus status;
+
+  private OffsetDateTime enrolledAt;
+
+  protected Enrollment() {}
+
+  private Enrollment(
+      CourseSession session, Long employeeId, EnrollmentStatus status, OffsetDateTime now) {
+    this.session = session;
+    this.courseId = session.getCourse().getId();
+    this.employeeId = employeeId;
+    this.status = status;
+    this.enrolledAt = now;
+  }
+
+  public static Enrollment confirm(CourseSession session, Long employeeId, OffsetDateTime now) {
+    return new Enrollment(session, employeeId, EnrollmentStatus.CONFIRMED, now);
+  }
+
+  public static Enrollment waiting(CourseSession session, Long employeeId, OffsetDateTime now) {
+    return new Enrollment(session, employeeId, EnrollmentStatus.WAITING, now);
+  }
+
+  public boolean isConfirmed() {
+    return status == EnrollmentStatus.CONFIRMED;
+  }
+
+  public Long getId() {
+    return id;
+  }
+
+  public CourseSession getSession() {
+    return session;
+  }
+
+  public Long getCourseId() {
+    return courseId;
+  }
+
+  public Long getEmployeeId() {
+    return employeeId;
+  }
+
+  public EnrollmentStatus getStatus() {
+    return status;
+  }
+
+  public OffsetDateTime getEnrolledAt() {
+    return enrolledAt;
+  }
+}
