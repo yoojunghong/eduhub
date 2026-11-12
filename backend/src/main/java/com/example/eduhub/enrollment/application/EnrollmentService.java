@@ -25,6 +25,9 @@ import org.springframework.transaction.annotation.Transactional;
 @Transactional
 public class EnrollmentService {
 
+  /** 회차 락 대기 최대 시간 (PostgreSQL lock_timeout 형식). 넘으면 락 실패 예외 → 503 SESSION_BUSY. */
+  static final String LOCK_TIMEOUT = "3s";
+
   private static final String ACTIVE_UNIQUE_INDEX = "ux_enrollment_active_course";
 
   private final CourseSessionRepository sessionRepository;
@@ -41,7 +44,8 @@ public class EnrollmentService {
   }
 
   public EnrollmentResponse enroll(Long sessionId, Long employeeId) {
-    // 1. 회차 행 잠금. 같은 회차 신청은 여기서 줄을 선다
+    // 1. 회차 행 잠금. 같은 회차 신청은 여기서 줄을 선다 (대기는 LOCK_TIMEOUT까지)
+    sessionRepository.setLockTimeout(LOCK_TIMEOUT);
     CourseSession session =
         sessionRepository
             .findByIdForUpdate(sessionId)

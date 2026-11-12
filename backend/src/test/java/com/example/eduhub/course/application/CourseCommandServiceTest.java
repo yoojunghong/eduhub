@@ -15,8 +15,10 @@ import com.example.eduhub.course.domain.CourseRepository;
 import com.example.eduhub.course.domain.CourseSession;
 import com.example.eduhub.course.domain.CourseStatus;
 import com.example.eduhub.course.domain.SessionStatus;
+import com.example.eduhub.enrollment.domain.Enrollment;
 import io.zonky.test.db.AutoConfigureEmbeddedDatabase;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -132,6 +134,28 @@ class CourseCommandServiceTest {
     service.close(id);
 
     assertThat(service.close(id).status()).isEqualTo("CLOSED");
+  }
+
+  @Test
+  @DisplayName("확정 신청이 있는 회차의 update 응답 remainingSeats는 정원에서 확정 수를 뺀 값이다 (close도 같다)")
+  void updateAndClose_remainingSeatsReflectConfirmed() {
+    Long id = createCourse();
+    Long sessionId = service.addSession(id, new SessionCreateRequest(NEXT_MONTH, "본사 3층", 5)).id();
+    flushAndClear();
+    CourseSession session = em.find(CourseSession.class, sessionId);
+    OffsetDateTime now = OffsetDateTime.now();
+    em.persist(Enrollment.confirm(session, 1L, now));
+    em.persist(Enrollment.confirm(session, 2L, now));
+    em.persist(Enrollment.waiting(session, 3L, now));
+    flushAndClear();
+
+    CourseDetailResponse updated =
+        service.update(id, new CourseUpdateRequest("JPA 실전", "BACKEND", null));
+    flushAndClear();
+    CourseDetailResponse closed = service.close(id);
+
+    assertThat(updated.sessions()).extracting(SessionResponse::remainingSeats).containsExactly(3);
+    assertThat(closed.sessions()).extracting(SessionResponse::remainingSeats).containsExactly(3);
   }
 
   private Long createCourse() {
