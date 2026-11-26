@@ -86,6 +86,55 @@ class AuthApiTest {
   }
 
   @Test
+  @DisplayName("만료 토큰이 붙어 있어도 로그인은 200이다 (재로그인 가능)")
+  void 만료_토큰이_붙은_로그인은_200() throws Exception {
+    String expired = token(new JwtConfig(secret).jwtEncoder(), Instant.now().minusSeconds(180));
+    mockMvc
+        .perform(
+            post("/api/v1/auth/login")
+                .header("Authorization", "Bearer " + expired)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body(NO, PASSWORD)))
+        .andExpect(status().isOk());
+  }
+
+  @Test
+  @DisplayName("공개 GET이라도 만료 토큰이 붙으면 401이다 (결정)")
+  void 공개_GET에_만료_토큰이면_401() throws Exception {
+    String expired = token(new JwtConfig(secret).jwtEncoder(), Instant.now().minusSeconds(180));
+    mockMvc
+        .perform(get("/api/v1/courses").header("Authorization", "Bearer " + expired))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+  }
+
+  @Test
+  @DisplayName("관리자 로그인 시 응답과 토큰의 role이 ADMIN이다")
+  void 관리자_로그인() throws Exception {
+    if (employeeRepository.findByEmployeeNo("T-AUTH-ADMIN").isEmpty()) {
+      employeeRepository.save(
+          new Employee(
+              "T-AUTH-ADMIN", "관리자", null, passwordEncoder.encode(PASSWORD), EmployeeRole.ADMIN));
+    }
+    String response =
+        mockMvc
+            .perform(
+                post("/api/v1/auth/login")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content(body("T-AUTH-ADMIN", PASSWORD)))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.user.role").value("ADMIN"))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    String accessToken = objectMapper.readTree(response).get("accessToken").asText();
+    mockMvc
+        .perform(get("/api/v1/me").header("Authorization", "Bearer " + accessToken))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.role").value("ADMIN"));
+  }
+
+  @Test
   @DisplayName("맞는 사번·비밀번호로 로그인하면 토큰을 받고, 그 토큰으로 /me가 같은 사원을 돌려준다")
   void 로그인_후_me() throws Exception {
     String response =

@@ -11,9 +11,9 @@ public record LoginResponse(
         "Bearer",
         result.ttlSeconds(),
         new CurrentUser(
-            result.employee().getId(),
-            result.employee().getEmployeeNo(),
-            result.employee().getName(),
-            result.employee().getRole().name()));
+            result.user().id(),
+            result.user().employeeNo(),
+            result.user().name(),
+            result.user().role()));
   }
 }

@@ -37,9 +37,20 @@ public class LoginService {
     boolean matches = passwordEncoder.matches(password, hash);
     if (employee == null || !matches) {
       // 사번만 남긴다. 비밀번호·토큰은 남기지 않는다
-      log.info("로그인 실패: employeeNo={}", employeeNo);
+      log.info("로그인 실패: employeeNo={}", sanitize(employeeNo));
       throw new InvalidCredentialsException();
     }
-    return new LoginResult(tokenService.issue(employee), tokenService.ttlSeconds(), employee);
+    LoginUser user =
+        new LoginUser(
+            employee.getId(),
+            employee.getEmployeeNo(),
+            employee.getName(),
+            employee.getRole().name());
+    return new LoginResult(tokenService.issue(employee), tokenService.ttlSeconds(), user);
+  }
+
+  /** 로그 위조 방지: 개행·제어문자를 제거한다. */
+  private static String sanitize(String value) {
+    return value == null ? null : value.replaceAll("\\p{Cntrl}", "");
   }
 }

@@ -15,6 +15,8 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.oauth2.server.resource.authentication.JwtGrantedAuthoritiesConverter;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
@@ -69,6 +71,7 @@ public class SecurityConfig {
                 .authenticated())
         .oauth2ResourceServer(oauth ->
             oauth
+                .bearerTokenResolver(bearerTokenResolver())
                 .jwt(jwt -> jwt.jwtAuthenticationConverter(jwtAuthenticationConverter()))
                 .authenticationEntryPoint(entryPoint)
                 .accessDeniedHandler(deniedHandler))
@@ -85,6 +88,16 @@ public class SecurityConfig {
     JwtAuthenticationConverter converter = new JwtAuthenticationConverter();
     converter.setJwtGrantedAuthoritiesConverter(authorities);
     return converter;
+  }
+
+  /** 로그인 요청은 붙어 온 토큰을 읽지 않는다(만료·위조 토큰 때문에 재로그인이 막히지 않게). 그 밖의 경로는 기본 동작(공개 GET도 만료 토큰이면 401). */
+  @Bean
+  public BearerTokenResolver bearerTokenResolver() {
+    DefaultBearerTokenResolver delegate = new DefaultBearerTokenResolver();
+    return request ->
+        "POST".equals(request.getMethod()) && "/api/v1/auth/login".equals(request.getRequestURI())
+            ? null
+            : delegate.resolve(request);
   }
 
   @Bean
