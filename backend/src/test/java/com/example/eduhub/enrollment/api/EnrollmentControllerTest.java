@@ -33,7 +33,8 @@ class EnrollmentControllerTest {
   @DisplayName("신청하면 201과 Location 헤더, 신청 결과를 돌려준다")
   void enroll_created() throws Exception {
     given(enrollmentService.enroll(10L, 1001L))
-        .willReturn(new EnrollmentResponse(5L, 10L, 3L, 1001L, "CONFIRMED", null, OffsetDateTime.now()));
+        .willReturn(
+            new EnrollmentResponse(5L, 10L, 3L, 1001L, "CONFIRMED", null, OffsetDateTime.now()));
 
     mockMvc
         .perform(post(URL).header(HEADER, "1001"))
