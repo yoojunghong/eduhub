@@ -17,7 +17,6 @@ import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -93,20 +92,13 @@ public class GlobalExceptionHandler {
     return new ErrorResponse("WAITLIST_FULL", e.getMessage());
   }
 
-  /** 임시 인증 헤더(X-Employee-Id) 누락. TODO(NFR-03) 인증 도입 시 재검토 */
-  @ExceptionHandler(MissingRequestHeaderException.class)
-  @ResponseStatus(HttpStatus.BAD_REQUEST)
-  public ErrorResponse handleMissingHeader(MissingRequestHeaderException e) {
-    return new ErrorResponse("INVALID_REQUEST", "필수 헤더가 없습니다: " + e.getHeaderName());
-  }
-
   @ExceptionHandler(MethodArgumentTypeMismatchException.class)
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   public ErrorResponse handleTypeMismatch(MethodArgumentTypeMismatchException e) {
     return new ErrorResponse("INVALID_REQUEST", "형식이 올바르지 않습니다: " + e.getName());
   }
 
-  /** 헤더·파라미터 직접 검증({@code @Positive} 등) 실패. */
+  /** 파라미터 직접 검증({@code @Positive} 등) 실패. */
   @ExceptionHandler(HandlerMethodValidationException.class)
   @ResponseStatus(HttpStatus.BAD_REQUEST)
   public ErrorResponse handleMethodValidation(HandlerMethodValidationException e) {

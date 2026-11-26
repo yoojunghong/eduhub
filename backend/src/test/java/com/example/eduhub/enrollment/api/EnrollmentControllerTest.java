@@ -3,11 +3,16 @@ package com.example.eduhub.enrollment.api;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.example.eduhub.TestAuth;
+import com.example.eduhub.auth.config.JwtConfig;
+import com.example.eduhub.auth.config.SecurityConfig;
 import com.example.eduhub.enrollment.application.EnrollmentService;
 import com.example.eduhub.enrollment.domain.CancelPeriodEndedException;
 import com.example.eduhub.enrollment.domain.DuplicateEnrollmentException;
@@ -19,21 +24,20 @@ import java.time.OffsetDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(EnrollmentController.class)
-@AutoConfigureMockMvc(addFilters = false) // TODO(NFR-03 T4): jwt() 후처리로 교체
+@Import({SecurityConfig.class, JwtConfig.class})
 @ActiveProfiles("test")
 class EnrollmentControllerTest {
 
   private static final String URL = "/api/v1/sessions/10/enrollments";
   private static final String CANCEL_URL = "/api/v1/enrollments/5/cancel";
-  private static final String HEADER = "X-Employee-Id";
 
   @Autowired private MockMvc mockMvc;
   @MockitoBean private EnrollmentService enrollmentService;
@@ -46,7 +50,7 @@ class EnrollmentControllerTest {
             new EnrollmentResponse(5L, 10L, 3L, 1001L, "CONFIRMED", null, OffsetDateTime.now()));
 
     mockMvc
-        .perform(post(URL).header(HEADER, "1001"))
+        .perform(post(URL).with(TestAuth.employee(1001)))
         .andExpect(status().isCreated())
         .andExpect(header().string("Location", "/api/v1/enrollments/5"))
         .andExpect(jsonPath("$.id").value(5))
@@ -55,34 +59,25 @@ class EnrollmentControllerTest {
   }
 
   @Test
-  @DisplayName("X-Employee-Id 헤더가 없으면 400 INVALID_REQUEST")
-  void enroll_missingHeader_badRequest() throws Exception {
+  @DisplayName("토큰이 없으면 401 UNAUTHORIZED")
+  void enroll_noToken_unauthorized() throws Exception {
     mockMvc
         .perform(post(URL))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    verifyNoInteractions(enrollmentService);
   }
 
   @Test
-  @DisplayName("X-Employee-Id가 0이거나 음수면 400 INVALID_REQUEST")
-  void enroll_nonPositiveHeader_badRequest() throws Exception {
-    mockMvc
-        .perform(post(URL).header(HEADER, "0"))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
-    mockMvc
-        .perform(post(URL).header(HEADER, "-5"))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
-  }
+  @DisplayName("신청자는 요청이 아니라 토큰의 사원이다 (관리자 토큰이어도 그 사원 id)")
+  void enroll_usesTokenEmployee() throws Exception {
+    given(enrollmentService.enroll(10L, 2002L))
+        .willReturn(
+            new EnrollmentResponse(5L, 10L, 3L, 2002L, "CONFIRMED", null, OffsetDateTime.now()));
 
-  @Test
-  @DisplayName("X-Employee-Id가 숫자가 아니면 400 INVALID_REQUEST")
-  void enroll_nonNumericHeader_badRequest() throws Exception {
-    mockMvc
-        .perform(post(URL).header(HEADER, "abc"))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    mockMvc.perform(post(URL).with(TestAuth.admin(2002))).andExpect(status().isCreated());
+
+    verify(enrollmentService).enroll(10L, 2002L);
   }
 
   @Test
@@ -91,7 +86,7 @@ class EnrollmentControllerTest {
     given(enrollmentService.enroll(10L, 1001L)).willThrow(new SessionNotFoundException(10L));
 
     mockMvc
-        .perform(post(URL).header(HEADER, "1001"))
+        .perform(post(URL).with(TestAuth.employee(1001)))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("SESSION_NOT_FOUND"));
   }
@@ -102,7 +97,7 @@ class EnrollmentControllerTest {
     given(enrollmentService.enroll(10L, 1001L)).willThrow(new DuplicateEnrollmentException(3L));
 
     mockMvc
-        .perform(post(URL).header(HEADER, "1001"))
+        .perform(post(URL).with(TestAuth.employee(1001)))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("DUPLICATE_ENROLLMENT"));
   }
@@ -114,7 +109,7 @@ class EnrollmentControllerTest {
         .willThrow(new CannotAcquireLockException("lock timeout"));
 
     mockMvc
-        .perform(post(URL).header(HEADER, "1001"))
+        .perform(post(URL).with(TestAuth.employee(1001)))
         .andExpect(status().isServiceUnavailable())
         .andExpect(jsonPath("$.code").value("SESSION_BUSY"));
   }
@@ -126,7 +121,7 @@ class EnrollmentControllerTest {
         .willReturn(new EnrollmentResponse(6L, 10L, 3L, 1001L, "WAITING", 2, OffsetDateTime.now()));
 
     mockMvc
-        .perform(post(URL).header(HEADER, "1001"))
+        .perform(post(URL).with(TestAuth.employee(1001)))
         .andExpect(status().isCreated())
         .andExpect(jsonPath("$.status").value("WAITING"))
         .andExpect(jsonPath("$.waitingNumber").value(2));
@@ -140,7 +135,7 @@ class EnrollmentControllerTest {
             new EnrollmentResponse(5L, 10L, 3L, 1001L, "CONFIRMED", null, OffsetDateTime.now()));
 
     mockMvc
-        .perform(post(URL).header(HEADER, "1001"))
+        .perform(post(URL).with(TestAuth.employee(1001)))
         .andExpect(jsonPath("$", hasKey("waitingNumber")))
         .andExpect(jsonPath("$.waitingNumber").value(nullValue()));
   }
@@ -151,7 +146,7 @@ class EnrollmentControllerTest {
     given(enrollmentService.enroll(10L, 1001L)).willThrow(new WaitlistFullException(10L));
 
     mockMvc
-        .perform(post(URL).header(HEADER, "1001"))
+        .perform(post(URL).with(TestAuth.employee(1001)))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("WAITLIST_FULL"));
   }
@@ -164,7 +159,7 @@ class EnrollmentControllerTest {
             new EnrollmentResponse(5L, 10L, 3L, 1001L, "CANCELED", null, OffsetDateTime.now()));
 
     mockMvc
-        .perform(post(CANCEL_URL).header(HEADER, "1001"))
+        .perform(post(CANCEL_URL).with(TestAuth.employee(1001)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.id").value(5))
         .andExpect(jsonPath("$.status").value("CANCELED"))
@@ -172,34 +167,25 @@ class EnrollmentControllerTest {
   }
 
   @Test
-  @DisplayName("취소 시 X-Employee-Id 헤더가 없으면 400 INVALID_REQUEST")
-  void cancel_missingHeader_badRequest() throws Exception {
+  @DisplayName("취소 시 토큰이 없으면 401 UNAUTHORIZED")
+  void cancel_noToken_unauthorized() throws Exception {
     mockMvc
         .perform(post(CANCEL_URL))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+    verifyNoInteractions(enrollmentService);
   }
 
   @Test
-  @DisplayName("취소 시 X-Employee-Id가 0이거나 음수면 400 INVALID_REQUEST")
-  void cancel_nonPositiveHeader_badRequest() throws Exception {
-    mockMvc
-        .perform(post(CANCEL_URL).header(HEADER, "0"))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
-    mockMvc
-        .perform(post(CANCEL_URL).header(HEADER, "-5"))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
-  }
+  @DisplayName("취소자는 토큰의 사원이다")
+  void cancel_usesTokenEmployee() throws Exception {
+    given(enrollmentService.cancel(5L, 2002L))
+        .willReturn(
+            new EnrollmentResponse(5L, 10L, 3L, 2002L, "CANCELED", null, OffsetDateTime.now()));
 
-  @Test
-  @DisplayName("취소 시 X-Employee-Id가 숫자가 아니면 400 INVALID_REQUEST")
-  void cancel_nonNumericHeader_badRequest() throws Exception {
-    mockMvc
-        .perform(post(CANCEL_URL).header(HEADER, "abc"))
-        .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    mockMvc.perform(post(CANCEL_URL).with(TestAuth.employee(2002))).andExpect(status().isOk());
+
+    verify(enrollmentService).cancel(5L, 2002L);
   }
 
   @Test
@@ -208,7 +194,7 @@ class EnrollmentControllerTest {
     given(enrollmentService.cancel(5L, 1001L)).willThrow(new EnrollmentNotFoundException(5L));
 
     mockMvc
-        .perform(post(CANCEL_URL).header(HEADER, "1001"))
+        .perform(post(CANCEL_URL).with(TestAuth.employee(1001)))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.code").value("ENROLLMENT_NOT_FOUND"));
   }
@@ -219,7 +205,7 @@ class EnrollmentControllerTest {
     given(enrollmentService.cancel(5L, 1001L)).willThrow(new EnrollmentNotCancelableException(5L));
 
     mockMvc
-        .perform(post(CANCEL_URL).header(HEADER, "1001"))
+        .perform(post(CANCEL_URL).with(TestAuth.employee(1001)))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("ENROLLMENT_NOT_CANCELABLE"));
   }
@@ -230,7 +216,7 @@ class EnrollmentControllerTest {
     given(enrollmentService.cancel(5L, 1001L)).willThrow(new CancelPeriodEndedException(10L));
 
     mockMvc
-        .perform(post(CANCEL_URL).header(HEADER, "1001"))
+        .perform(post(CANCEL_URL).with(TestAuth.employee(1001)))
         .andExpect(status().isConflict())
         .andExpect(jsonPath("$.code").value("CANCEL_PERIOD_ENDED"));
   }
@@ -242,7 +228,7 @@ class EnrollmentControllerTest {
         .willThrow(new CannotAcquireLockException("lock timeout"));
 
     mockMvc
-        .perform(post(CANCEL_URL).header(HEADER, "1001"))
+        .perform(post(CANCEL_URL).with(TestAuth.employee(1001)))
         .andExpect(status().isServiceUnavailable())
         .andExpect(jsonPath("$.code").value("SESSION_BUSY"));
   }

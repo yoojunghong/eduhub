@@ -70,6 +70,14 @@ public class CourseController {
       responseCode = "400",
       description = "입력값 오류",
       content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  @ApiResponse(
+      responseCode = "401",
+      description = "로그인 필요 (UNAUTHORIZED)",
+      content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  @ApiResponse(
+      responseCode = "403",
+      description = "관리자 권한 필요 (FORBIDDEN)",
+      content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
   @PostMapping
   public ResponseEntity<CourseDetailResponse> createCourse(
       @Valid @RequestBody CourseCreateRequest request) {
@@ -91,6 +99,14 @@ public class CourseController {
       responseCode = "409",
       description = "종료된 과정",
       content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  @ApiResponse(
+      responseCode = "401",
+      description = "로그인 필요 (UNAUTHORIZED)",
+      content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  @ApiResponse(
+      responseCode = "403",
+      description = "관리자 권한 필요 (FORBIDDEN)",
+      content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
   @PutMapping("/{id}")
   public CourseDetailResponse updateCourse(
       @PathVariable Long id, @Valid @RequestBody CourseUpdateRequest request) {
@@ -111,6 +127,14 @@ public class CourseController {
       responseCode = "409",
       description = "종료된 과정",
       content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  @ApiResponse(
+      responseCode = "401",
+      description = "로그인 필요 (UNAUTHORIZED)",
+      content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  @ApiResponse(
+      responseCode = "403",
+      description = "관리자 권한 필요 (FORBIDDEN)",
+      content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
   @PostMapping("/{id}/sessions")
   public ResponseEntity<SessionResponse> addSession(
       @PathVariable Long id, @Valid @RequestBody SessionCreateRequest request) {
@@ -123,6 +147,14 @@ public class CourseController {
   @ApiResponse(
       responseCode = "404",
       description = "과정이 없음",
+      content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  @ApiResponse(
+      responseCode = "401",
+      description = "로그인 필요 (UNAUTHORIZED)",
+      content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  @ApiResponse(
+      responseCode = "403",
+      description = "관리자 권한 필요 (FORBIDDEN)",
       content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
   @PostMapping("/{id}/close")
   public CourseDetailResponse closeCourse(@PathVariable Long id) {
