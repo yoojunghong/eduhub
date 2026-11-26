@@ -43,6 +43,11 @@ public class CourseSession {
     this.status = SessionStatus.CLOSED;
   }
 
+  /** 대기 상한: 정원의 50% 내림 (D-06). */
+  public int waitlistLimit() {
+    return capacity / 2;
+  }
+
   public Long getId() {
     return id;
   }

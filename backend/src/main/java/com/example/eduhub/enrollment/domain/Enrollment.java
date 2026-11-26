@@ -66,6 +66,26 @@ public class Enrollment {
     return status == EnrollmentStatus.CONFIRMED;
   }
 
+  public boolean isWaiting() {
+    return status == EnrollmentStatus.WAITING;
+  }
+
+  /** 확정·대기 신청을 취소한다. 그 밖의 상태면 예외. 기간(취소 마감·승급 중단) 검사는 서비스가 한다. */
+  public void cancel() {
+    if (status != EnrollmentStatus.CONFIRMED && status != EnrollmentStatus.WAITING) {
+      throw new EnrollmentNotCancelableException(id);
+    }
+    this.status = EnrollmentStatus.CANCELED;
+  }
+
+  /** 대기 신청을 확정으로 올린다. 대기가 아니면 프로그래밍 오류. 기간(취소 마감·승급 중단) 검사는 서비스가 한다. */
+  public void promote() {
+    if (status != EnrollmentStatus.WAITING) {
+      throw new IllegalStateException("대기 상태만 승급할 수 있습니다. id=" + id + ", status=" + status);
+    }
+    this.status = EnrollmentStatus.CONFIRMED;
+  }
+
   public Long getId() {
     return id;
   }
