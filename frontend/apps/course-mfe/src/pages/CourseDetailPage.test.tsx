@@ -44,6 +44,28 @@ test('남은 자리가 없으면 대기 신청 버튼이고, 대기 등록을 �
   expect(await screen.findByText('정원이 차서 대기자로 등록되었습니다.')).toBeInTheDocument();
 });
 
+test('대기 결과에 순번이 있으면 대기 N번으로 안내한다', async () => {
+  mockUseCourse.mockReturnValue({ ...course([openSession(0)]), reload });
+  enroll.mockResolvedValue({ id: 2, sessionId: 10, status: 'WAITING', waitingNumber: 3 });
+  renderPage();
+
+  fireEvent.click(screen.getByRole('button', { name: '대기 신청' }));
+
+  expect(await screen.findByText('정원이 차서 대기 3번으로 등록되었습니다.')).toBeInTheDocument();
+});
+
+test('대기 인원이 가득 차면(WAITLIST_FULL) 이유를 보여 준다', async () => {
+  mockUseCourse.mockReturnValue({ ...course([openSession(0)]), reload });
+  enroll.mockRejectedValue(
+    Object.assign(new Error('409'), { response: { status: 409, data: { code: 'WAITLIST_FULL' } } }),
+  );
+  renderPage();
+
+  fireEvent.click(screen.getByRole('button', { name: '대기 신청' }));
+
+  expect(await screen.findByRole('alert')).toHaveTextContent('대기 인원이 가득 찼습니다.');
+});
+
 test('중복 신청(409)이면 이유를 보여 준다', async () => {
   mockUseCourse.mockReturnValue({ ...course([openSession(5)]), reload });
   enroll.mockRejectedValue(

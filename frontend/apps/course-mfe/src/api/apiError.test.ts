@@ -14,6 +14,10 @@ test('입력값 오류(400)는 서버 메시지를 함께 보여 준다', () => 
   );
 });
 
+test('대기 인원이 가득 찬 경우(409 WAITLIST_FULL)를 알려 준다', () => {
+  expect(apiErrorMessage(axiosError(409, { code: 'WAITLIST_FULL', message: '...' }))).toBe('대기 인원이 가득 찼습니다.');
+});
+
 test('본문 없는 404는 과정을 찾을 수 없다고 알려 준다', () => {
   expect(apiErrorMessage(axiosError(404))).toBe('과정을 찾을 수 없습니다.');
 });

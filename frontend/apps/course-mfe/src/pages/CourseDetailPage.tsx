@@ -47,7 +47,13 @@ export function CourseDetailPage({ id }: { id: number }) {
       const enrollment = await enroll(sessionId);
       setResult(
         enrollment.status === 'WAITING'
-          ? { severity: 'info', message: '정원이 차서 대기자로 등록되었습니다.' }
+          ? {
+              severity: 'info',
+              message:
+                enrollment.waitingNumber != null
+                  ? `정원이 차서 대기 ${enrollment.waitingNumber}번으로 등록되었습니다.`
+                  : '정원이 차서 대기자로 등록되었습니다.',
+            }
           : { severity: 'success', message: '수강 신청이 확정되었습니다.' },
       );
       reload(); // 남은 자리를 새로 보여 준다

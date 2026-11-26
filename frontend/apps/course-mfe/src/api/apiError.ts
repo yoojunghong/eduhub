@@ -28,6 +28,8 @@ export function apiErrorMessage(error: unknown, fallback = '요청을 처리하�
       return '회차를 찾을 수 없습니다.';
     case 'SESSION_BUSY':
       return '신청이 몰려 있습니다. 잠시 후 다시 시도해 주세요.';
+    case 'WAITLIST_FULL':
+      return '대기 인원이 가득 찼습니다.';
     case 'INVALID_REQUEST':
       return `입력값을 확인해 주세요. (${body.message ?? ''})`;
   }
