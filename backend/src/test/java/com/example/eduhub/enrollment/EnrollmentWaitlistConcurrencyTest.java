@@ -38,6 +38,8 @@ import org.springframework.transaction.support.TransactionTemplate;
  * FR-05/06 대기·취소 동시성: 대기 순번 중복 없음, 동시 취소 시 승급 정확성, 취소와 신청이 겹쳐도 새치기 없음.
  *
  * <p>테스트의 테스트: EnrollmentService.cancel의 findByIdForUpdate를 findById로 바꾸면 ②③이 실패해야 한다(개발자가 직접 확인).
+ * 단 ②는 락을 빼면 같은 대기자가 중복 승급되어 실패할 수 있으나 타이밍 의존이므로 3회 이상 반복해 판단한다. ③은 취소·승급이 한 트랜잭션에서 원자적으로 커밋되어 락
+ * 없이도 새치기가 생기지 않을 수 있으므로, 락 제거 검출용이라기보다 "어느 순서든 새치기 없음"을 검증하는 시나리오다.
  */
 @SpringBootTest
 @AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.EMBEDDED)
@@ -126,7 +128,11 @@ class EnrollmentWaitlistConcurrencyTest {
 
     List<Throwable> failures = runConcurrently(jobs).stream().filter(t -> t != null).toList();
 
-    assertThat(failures).hasSize(15).allMatch(t -> t instanceof WaitlistFullException);
+    assertThat(failures)
+        .as("예상 밖 예외: %s", failures)
+        .hasSize(15)
+        .allMatch(t -> t instanceof WaitlistFullException);
+    assertThat(responses).hasSize(15);
     assertThat(count(sessionId, EnrollmentStatus.CONFIRMED)).isEqualTo(10);
     assertThat(count(sessionId, EnrollmentStatus.WAITING)).isEqualTo(5);
 
@@ -158,7 +164,7 @@ class EnrollmentWaitlistConcurrencyTest {
 
     List<Throwable> failures = runConcurrently(jobs).stream().filter(t -> t != null).toList();
 
-    assertThat(failures).isEmpty();
+    assertThat(failures).as("예상 밖 예외: %s", failures).isEmpty();
     assertThat(count(sessionId, EnrollmentStatus.CONFIRMED)).isEqualTo(8);
     assertThat(count(sessionId, EnrollmentStatus.WAITING)).isZero();
     assertThat(count(sessionId, EnrollmentStatus.CANCELED)).isEqualTo(5);
@@ -187,15 +193,30 @@ class EnrollmentWaitlistConcurrencyTest {
     List<Throwable> failures = runConcurrently(jobs).stream().filter(t -> t != null).toList();
 
     // 취소는 성공해야 하고, 신청 실패는 WaitlistFullException뿐이다 (503 SESSION_BUSY 등은 실패)
-    assertThat(failures).allMatch(t -> t instanceof WaitlistFullException);
-    assertThat(newResponses.size() + failures.size()).isEqualTo(10);
+    assertThat(failures)
+        .as("예상 밖 예외: %s", failures)
+        .allMatch(t -> t instanceof WaitlistFullException);
     assertThat(newResponses).allMatch(r -> "WAITING".equals(r.status()));
 
     assertThat(statusOf(canceling.id())).isEqualTo(EnrollmentStatus.CANCELED);
     assertThat(statusOf(w.id())).isEqualTo(EnrollmentStatus.CONFIRMED);
     assertThat(count(sessionId, EnrollmentStatus.CONFIRMED)).isEqualTo(10);
-    long waitingCount = count(sessionId, EnrollmentStatus.WAITING);
-    assertThat(waitingCount).isLessThanOrEqualTo(5).isEqualTo(newResponses.size());
+
+    // 순서와 무관한 조건: 신청 10명이 모두 취소보다 먼저면 W 포함 상한 5라 4명만 대기(최종 4),
+    // 취소가 먼저면 W가 이미 승급되어 5명이 대기(최종 5)
+    long finalWaiting = count(sessionId, EnrollmentStatus.WAITING);
+    assertThat(finalWaiting).isIn(4L, 5L);
+    assertThat((long) newResponses.size()).isEqualTo(finalWaiting);
+    assertThat((long) failures.size()).isEqualTo(10 - finalWaiting);
+    Set<Long> aheadCounts =
+        newResponses.stream()
+            .map(r -> enrollmentRepository.countWaitingAhead(sessionId, r.id()))
+            .collect(Collectors.toSet());
+    Set<Long> expected = new java.util.HashSet<>();
+    for (long n = 1; n <= finalWaiting; n++) {
+      expected.add(n);
+    }
+    assertThat(aheadCounts).isEqualTo(expected);
     for (EnrollmentResponse r : newResponses) {
       assertThat(statusOf(r.id())).isNotEqualTo(EnrollmentStatus.CONFIRMED);
     }
