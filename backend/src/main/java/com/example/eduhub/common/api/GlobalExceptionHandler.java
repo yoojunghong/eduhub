@@ -1,5 +1,6 @@
 package com.example.eduhub.common.api;
 
+import com.example.eduhub.auth.application.InvalidCredentialsException;
 import com.example.eduhub.course.domain.CourseClosedException;
 import com.example.eduhub.course.domain.CourseNotFoundException;
 import com.example.eduhub.enrollment.domain.CancelPeriodEndedException;
@@ -25,6 +26,12 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+  @ExceptionHandler(InvalidCredentialsException.class)
+  @ResponseStatus(HttpStatus.UNAUTHORIZED)
+  public ErrorResponse handleInvalidCredentials(InvalidCredentialsException e) {
+    return new ErrorResponse("INVALID_CREDENTIALS", e.getMessage());
+  }
 
   @ExceptionHandler(CourseNotFoundException.class)
   @ResponseStatus(HttpStatus.NOT_FOUND)
