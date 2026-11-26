@@ -12,6 +12,7 @@ import com.example.eduhub.enrollment.domain.EnrollmentRepository;
 import com.example.eduhub.enrollment.domain.EnrollmentStatus;
 import com.example.eduhub.enrollment.domain.SessionClosedException;
 import com.example.eduhub.enrollment.domain.SessionNotFoundException;
+import com.example.eduhub.enrollment.domain.WaitlistFullException;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -69,18 +70,26 @@ public class EnrollmentService {
       throw new DuplicateEnrollmentException(courseId);
     }
 
-    // 5~6. 락 안에서 확정 수를 세어 확정/대기 결정
+    // 5~6. 락 안에서 확정 수와 대기 수를 세어 확정/대기/거절 결정 (D-06: 대기자가 있으면 새치기 금지)
     long confirmed =
         enrollmentRepository.countBySessionIdAndStatus(sessionId, EnrollmentStatus.CONFIRMED);
+    long waiting =
+        enrollmentRepository.countBySessionIdAndStatus(sessionId, EnrollmentStatus.WAITING);
     OffsetDateTime now = OffsetDateTime.now(clock);
-    Enrollment enrollment =
-        confirmed < session.getCapacity()
-            ? Enrollment.confirm(session, employeeId, now)
-            : Enrollment.waiting(session, employeeId, now);
+    Enrollment enrollment;
+    Integer waitingNumber = null;
+    if (waiting == 0 && confirmed < session.getCapacity()) {
+      enrollment = Enrollment.confirm(session, employeeId, now);
+    } else if (waiting < session.waitlistLimit()) {
+      enrollment = Enrollment.waiting(session, employeeId, now);
+      waitingNumber = (int) waiting + 1;
+    } else {
+      throw new WaitlistFullException(sessionId);
+    }
 
     // 7. 다른 회차 동시 신청은 유일 인덱스가 막는다
     try {
-      return EnrollmentResponse.from(enrollmentRepository.saveAndFlush(enrollment));
+      return EnrollmentResponse.from(enrollmentRepository.saveAndFlush(enrollment), waitingNumber);
     } catch (DataIntegrityViolationException e) {
       // 진행 중 신청 유일 인덱스 위반만 중복으로 본다. 다른 제약 위반은 그대로 던진다
       if (isActiveEnrollmentViolation(e)) {

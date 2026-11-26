@@ -12,6 +12,7 @@ import com.example.eduhub.enrollment.domain.DuplicateEnrollmentException;
 import com.example.eduhub.enrollment.domain.EnrollmentPeriodEndedException;
 import com.example.eduhub.enrollment.domain.SessionClosedException;
 import com.example.eduhub.enrollment.domain.SessionNotFoundException;
+import com.example.eduhub.enrollment.domain.WaitlistFullException;
 import io.zonky.test.db.AutoConfigureEmbeddedDatabase;
 import java.sql.SQLException;
 import java.time.Clock;
@@ -119,12 +120,68 @@ class EnrollmentServiceTest {
   @Test
   @DisplayName("정원이 차면 대기로 신청된다")
   void enroll_full_waiting() {
+    CourseSession session = newSession(newCourse(), NEXT_MONTH, 2);
+    service.enroll(session.getId(), 1L);
+    service.enroll(session.getId(), 2L);
+
+    EnrollmentResponse third = service.enroll(session.getId(), 3L);
+
+    assertThat(third.status()).isEqualTo("WAITING");
+  }
+
+  @Test
+  @DisplayName("정원 4(대기 상한 2)에서 5·6번째 신청은 WAITING, 순번 1·2, 확정은 순번 null")
+  void enroll_waitingNumbers() {
+    CourseSession session = newSession(newCourse(), NEXT_MONTH, 4);
+    EnrollmentResponse first = service.enroll(session.getId(), 1L);
+    for (long e = 2; e <= 4; e++) {
+      service.enroll(session.getId(), e);
+    }
+
+    EnrollmentResponse w1 = service.enroll(session.getId(), 5L);
+    EnrollmentResponse w2 = service.enroll(session.getId(), 6L);
+
+    assertThat(first.waitingNumber()).isNull();
+    assertThat(w1.status()).isEqualTo("WAITING");
+    assertThat(w1.waitingNumber()).isEqualTo(1);
+    assertThat(w2.status()).isEqualTo("WAITING");
+    assertThat(w2.waitingNumber()).isEqualTo(2);
+  }
+
+  @Test
+  @DisplayName("정원 2(대기 상한 1)에서 4번째 신청은 WAITLIST_FULL이고 저장되지 않는다")
+  void enroll_waitlistFull_notSaved() {
+    CourseSession session = newSession(newCourse(), NEXT_MONTH, 2);
+    service.enroll(session.getId(), 1L);
+    service.enroll(session.getId(), 2L);
+    assertThat(service.enroll(session.getId(), 3L).waitingNumber()).isEqualTo(1);
+
+    assertThatThrownBy(() -> service.enroll(session.getId(), 4L))
+        .isInstanceOf(WaitlistFullException.class);
+
+    assertThat(enrollmentCount(session.getId())).isEqualTo(3L);
+  }
+
+  @Test
+  @DisplayName("정원 1(대기 상한 0)에서 2번째 신청은 WAITLIST_FULL")
+  void enroll_capacityOne_secondWaitlistFull() {
     CourseSession session = newSession(newCourse(), NEXT_MONTH, 1);
     service.enroll(session.getId(), 1L);
 
-    EnrollmentResponse second = service.enroll(session.getId(), 2L);
+    assertThatThrownBy(() -> service.enroll(session.getId(), 2L))
+        .isInstanceOf(WaitlistFullException.class);
 
-    assertThat(second.status()).isEqualTo("WAITING");
+    assertThat(enrollmentCount(session.getId())).isEqualTo(1L);
+  }
+
+  private long enrollmentCount(Long sessionId) {
+    em.flush();
+    return ((Number)
+            em.getEntityManager()
+                .createQuery("select count(e) from Enrollment e where e.session.id = :id")
+                .setParameter("id", sessionId)
+                .getSingleResult())
+        .longValue();
   }
 
   @Test

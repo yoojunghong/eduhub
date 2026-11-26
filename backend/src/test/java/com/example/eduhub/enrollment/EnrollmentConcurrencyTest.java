@@ -10,6 +10,7 @@ import com.example.eduhub.enrollment.application.EnrollmentService;
 import com.example.eduhub.enrollment.domain.DuplicateEnrollmentException;
 import com.example.eduhub.enrollment.domain.EnrollmentRepository;
 import com.example.eduhub.enrollment.domain.EnrollmentStatus;
+import com.example.eduhub.enrollment.domain.WaitlistFullException;
 import io.zonky.test.db.AutoConfigureEmbeddedDatabase;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -92,7 +93,7 @@ class EnrollmentConcurrencyTest {
   }
 
   @Test
-  @DisplayName("정원 10 회차에 서로 다른 100명이 동시에 신청해도 확정 10, 대기 90")
+  @DisplayName("정원 10 회차에 서로 다른 100명이 동시에 신청해도 확정 10, 대기 5, WAITLIST_FULL 85")
   void hundredEmployees_capacityTen_confirmedTen() throws Exception {
     Long sessionId = createSessions(10).get(0);
     List<Runnable> jobs = new ArrayList<>();
@@ -103,12 +104,12 @@ class EnrollmentConcurrencyTest {
 
     List<Throwable> failures = runConcurrently(jobs).stream().filter(t -> t != null).toList();
 
-    assertThat(failures).isEmpty();
+    assertThat(failures).hasSize(85).allMatch(t -> t instanceof WaitlistFullException);
     assertThat(
             enrollmentRepository.countBySessionIdAndStatus(sessionId, EnrollmentStatus.CONFIRMED))
         .isEqualTo(10);
     assertThat(enrollmentRepository.countBySessionIdAndStatus(sessionId, EnrollmentStatus.WAITING))
-        .isEqualTo(90);
+        .isEqualTo(5);
   }
 
   @Test
