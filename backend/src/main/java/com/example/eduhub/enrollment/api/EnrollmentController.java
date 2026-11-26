@@ -29,7 +29,9 @@ public class EnrollmentController {
   @Operation(
       summary = "수강 신청",
       description =
-          "회차에 수강 신청한다. 자리가 있으면 CONFIRMED, 정원이 차면 WAITING으로 등록한다 (FR-04). "
+          "회차에 수강 신청한다. 자리가 있고 대기자가 없으면 CONFIRMED, 정원이 차면(또는 대기자가 있으면) "
+              + "WAITING으로 등록하고 응답의 waitingNumber에 대기 순번(1부터)을 준다 (FR-04, FR-05). "
+              + "대기 인원은 정원의 50%(내림)까지이며 넘으면 WAITLIST_FULL (D-03, D-06). "
               + "X-Employee-Id는 인증 전 임시 방식, 공유 환경 배포 금지")
   @ApiResponse(responseCode = "201", description = "신청 성공 (CONFIRMED 또는 WAITING)")
   @ApiResponse(
@@ -42,7 +44,7 @@ public class EnrollmentController {
       content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
   @ApiResponse(
       responseCode = "409",
-      description = "종료된 회차, 신청 기간 종료, 또는 같은 과정에 진행 중 신청이 있음",
+      description = "종료된 회차, 신청 기간 종료, 같은 과정에 진행 중 신청이 있음, 또는 대기 인원이 가득 참 (WAITLIST_FULL)",
       content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
   @ApiResponse(
       responseCode = "503",
@@ -58,5 +60,40 @@ public class EnrollmentController {
           Long employeeId) {
     EnrollmentResponse created = enrollmentService.enroll(sessionId, employeeId);
     return ResponseEntity.created(URI.create("/api/v1/enrollments/" + created.id())).body(created);
+  }
+
+  @Operation(
+      summary = "수강 신청 취소",
+      description =
+          "본인의 신청(확정·대기)을 취소한다 (FR-06). 회차 시작일 당일부터는 취소할 수 없다 (D-02, D-07). "
+              + "확정자가 취소하면 대기 1순위가 자동으로 확정되지만, 회차 시작 1일 전부터는 승급하지 않고 "
+              + "자리만 빈다 (D-03). 응답에 승급된 사람 정보는 없다. "
+              + "X-Employee-Id는 인증 전 임시 방식, 공유 환경 배포 금지")
+  @ApiResponse(responseCode = "200", description = "취소 성공 (status: CANCELED)")
+  @ApiResponse(
+      responseCode = "400",
+      description = "X-Employee-Id 헤더 누락·형식 오류",
+      content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  @ApiResponse(
+      responseCode = "404",
+      description = "신청이 없거나 본인 것이 아님 (ENROLLMENT_NOT_FOUND)",
+      content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  @ApiResponse(
+      responseCode = "409",
+      description = "이미 취소·수료된 신청 (ENROLLMENT_NOT_CANCELABLE) 또는 취소 기간 종료 (CANCEL_PERIOD_ENDED)",
+      content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  @ApiResponse(
+      responseCode = "503",
+      description = "요청이 몰려 회차 락을 얻지 못함 (SESSION_BUSY). 잠시 후 다시 시도",
+      content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  @PostMapping("/api/v1/enrollments/{enrollmentId}/cancel")
+  public EnrollmentResponse cancel(
+      @PathVariable Long enrollmentId,
+      // TODO(NFR-03) 인증 도입 시 로그인 사용자 정보로 교체
+      @Parameter(description = "임시 직원 번호. 인증(NFR-03) 전까지만 쓰며 서버가 검증하지 않는다. TODO(NFR-03)")
+          @RequestHeader("X-Employee-Id")
+          @Positive
+          Long employeeId) {
+    return enrollmentService.cancel(enrollmentId, employeeId);
   }
 }

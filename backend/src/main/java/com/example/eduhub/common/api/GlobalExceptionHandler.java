@@ -2,10 +2,14 @@ package com.example.eduhub.common.api;
 
 import com.example.eduhub.course.domain.CourseClosedException;
 import com.example.eduhub.course.domain.CourseNotFoundException;
+import com.example.eduhub.enrollment.domain.CancelPeriodEndedException;
 import com.example.eduhub.enrollment.domain.DuplicateEnrollmentException;
+import com.example.eduhub.enrollment.domain.EnrollmentNotCancelableException;
+import com.example.eduhub.enrollment.domain.EnrollmentNotFoundException;
 import com.example.eduhub.enrollment.domain.EnrollmentPeriodEndedException;
 import com.example.eduhub.enrollment.domain.SessionClosedException;
 import com.example.eduhub.enrollment.domain.SessionNotFoundException;
+import com.example.eduhub.enrollment.domain.WaitlistFullException;
 import jakarta.validation.ConstraintViolationException;
 import java.util.stream.Collectors;
 import org.springframework.dao.PessimisticLockingFailureException;
@@ -56,6 +60,30 @@ public class GlobalExceptionHandler {
   @ResponseStatus(HttpStatus.CONFLICT)
   public ErrorResponse handleDuplicateEnrollment(DuplicateEnrollmentException e) {
     return new ErrorResponse("DUPLICATE_ENROLLMENT", e.getMessage());
+  }
+
+  @ExceptionHandler(EnrollmentNotFoundException.class)
+  @ResponseStatus(HttpStatus.NOT_FOUND)
+  public ErrorResponse handleEnrollmentNotFound(EnrollmentNotFoundException e) {
+    return new ErrorResponse("ENROLLMENT_NOT_FOUND", e.getMessage());
+  }
+
+  @ExceptionHandler(EnrollmentNotCancelableException.class)
+  @ResponseStatus(HttpStatus.CONFLICT)
+  public ErrorResponse handleNotCancelable(EnrollmentNotCancelableException e) {
+    return new ErrorResponse("ENROLLMENT_NOT_CANCELABLE", e.getMessage());
+  }
+
+  @ExceptionHandler(CancelPeriodEndedException.class)
+  @ResponseStatus(HttpStatus.CONFLICT)
+  public ErrorResponse handleCancelPeriodEnded(CancelPeriodEndedException e) {
+    return new ErrorResponse("CANCEL_PERIOD_ENDED", e.getMessage());
+  }
+
+  @ExceptionHandler(WaitlistFullException.class)
+  @ResponseStatus(HttpStatus.CONFLICT)
+  public ErrorResponse handleWaitlistFull(WaitlistFullException e) {
+    return new ErrorResponse("WAITLIST_FULL", e.getMessage());
   }
 
   /** 임시 인증 헤더(X-Employee-Id) 누락. TODO(NFR-03) 인증 도입 시 재검토 */
