@@ -5,8 +5,10 @@ import com.example.eduhub.course.domain.CourseSessionRepository;
 import com.example.eduhub.course.domain.CourseStatus;
 import com.example.eduhub.course.domain.SessionStatus;
 import com.example.eduhub.enrollment.api.EnrollmentResponse;
+import com.example.eduhub.enrollment.domain.CancelPeriodEndedException;
 import com.example.eduhub.enrollment.domain.DuplicateEnrollmentException;
 import com.example.eduhub.enrollment.domain.Enrollment;
+import com.example.eduhub.enrollment.domain.EnrollmentNotFoundException;
 import com.example.eduhub.enrollment.domain.EnrollmentPeriodEndedException;
 import com.example.eduhub.enrollment.domain.EnrollmentRepository;
 import com.example.eduhub.enrollment.domain.EnrollmentStatus;
@@ -97,6 +99,59 @@ public class EnrollmentService {
       }
       throw e;
     }
+  }
+
+  /** 신청 취소 (FR-06, D-02). 확정자가 취소하면 승급 기간 안에서 대기 1순위를 확정으로 올린다. */
+  public EnrollmentResponse cancel(Long enrollmentId, Long employeeId) {
+    // 1. 락 없이 회차 번호만 (스칼라 조회: 엔티티를 영속성 컨텍스트에 올리지 않는다)
+    Long sessionId =
+        enrollmentRepository
+            .findSessionIdByIdAndEmployeeId(enrollmentId, employeeId)
+            .orElseThrow(() -> new EnrollmentNotFoundException(enrollmentId));
+
+    // 2. 신청과 같은 회차 행 잠금
+    sessionRepository.setLockTimeout(LOCK_TIMEOUT);
+    CourseSession session =
+        sessionRepository
+            .findByIdForUpdate(sessionId)
+            .orElseThrow(() -> new SessionNotFoundException(sessionId));
+
+    // 3. 락을 잡은 뒤에 읽어야 최신 상태다
+    Enrollment enrollment =
+        enrollmentRepository
+            .findById(enrollmentId)
+            .orElseThrow(() -> new EnrollmentNotFoundException(enrollmentId));
+
+    // 4. 취소는 시작 전날까지 (D-02)
+    LocalDate today = LocalDate.now(clock);
+    LocalDate startDate = session.getStartDate();
+    if (!today.isBefore(startDate)) {
+      throw new CancelPeriodEndedException(sessionId);
+    }
+
+    // 5. 취소
+    boolean wasConfirmed = enrollment.isConfirmed();
+    enrollment.cancel();
+
+    // 6. 확정자 취소이고 시작 1일 전 이전이면 대기 1순위 승급 (D-03)
+    if (wasConfirmed && today.isBefore(startDate.minusDays(1))) {
+      promoteNext(sessionId);
+    }
+
+    return EnrollmentResponse.from(enrollment);
+  }
+
+  /**
+   * 승급 지점. 회차 락 안에서만 호출한다. 확정자 1명이 빠진 자리에만 부르므로 정원을 넘지 않는다. 정원 축소(D-04)가 생기면 승급 전에 {@code confirmed
+   * < capacity}를 다시 확인해야 한다.
+   */
+  private void promoteNext(Long sessionId) {
+    enrollmentRepository
+        .findFirstWaiting(sessionId)
+        .ifPresent(next -> {
+          next.promote();
+          // FR-09: 승급 알림 이벤트 자리
+        });
   }
 
   static boolean isActiveEnrollmentViolation(Throwable e) {

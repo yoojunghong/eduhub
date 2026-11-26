@@ -8,8 +8,13 @@ import com.example.eduhub.course.domain.CourseRepository;
 import com.example.eduhub.course.domain.CourseSession;
 import com.example.eduhub.course.domain.CourseSessionRepository;
 import com.example.eduhub.enrollment.api.EnrollmentResponse;
+import com.example.eduhub.enrollment.domain.CancelPeriodEndedException;
 import com.example.eduhub.enrollment.domain.DuplicateEnrollmentException;
+import com.example.eduhub.enrollment.domain.EnrollmentNotCancelableException;
+import com.example.eduhub.enrollment.domain.EnrollmentNotFoundException;
 import com.example.eduhub.enrollment.domain.EnrollmentPeriodEndedException;
+import com.example.eduhub.enrollment.domain.EnrollmentRepository;
+import com.example.eduhub.enrollment.domain.EnrollmentStatus;
 import com.example.eduhub.enrollment.domain.SessionClosedException;
 import com.example.eduhub.enrollment.domain.SessionNotFoundException;
 import com.example.eduhub.enrollment.domain.WaitlistFullException;
@@ -92,6 +97,7 @@ class EnrollmentServiceTest {
   @Autowired private EnrollmentService service;
   @Autowired private CourseRepository courseRepository;
   @Autowired private CourseSessionRepository sessionRepository;
+  @Autowired private EnrollmentRepository enrollmentRepository;
   @Autowired private TestEntityManager em;
 
   private Course newCourse() {
@@ -265,6 +271,154 @@ class EnrollmentServiceTest {
     assertThat(EnrollmentService.isActiveEnrollmentViolation(other)).isFalse();
     assertThat(EnrollmentService.isActiveEnrollmentViolation(unique)).isTrue();
     assertThat(EnrollmentService.isActiveEnrollmentViolation(uniqueByMessage)).isTrue();
+  }
+
+  private String statusOf(Long enrollmentId) {
+    em.flush();
+    em.clear();
+    return enrollmentRepository.findById(enrollmentId).orElseThrow().getStatus().name();
+  }
+
+  @Test
+  @DisplayName("확정자 취소(시작 7일 전): 대기 1순위가 확정되고 2순위 순번이 1로 당겨진다")
+  void cancel_confirmed_promotesFirstWaiting() {
+    CourseSession session = newSession(newCourse(), TODAY.plusDays(7), 4);
+    EnrollmentResponse first = service.enroll(session.getId(), 1L);
+    for (long e = 2; e <= 4; e++) {
+      service.enroll(session.getId(), e);
+    }
+    EnrollmentResponse w1 = service.enroll(session.getId(), 5L);
+    EnrollmentResponse w2 = service.enroll(session.getId(), 6L);
+
+    EnrollmentResponse canceled = service.cancel(first.id(), 1L);
+
+    assertThat(canceled.status()).isEqualTo("CANCELED");
+    assertThat(canceled.waitingNumber()).isNull();
+    assertThat(statusOf(w1.id())).isEqualTo("CONFIRMED");
+    assertThat(statusOf(w2.id())).isEqualTo("WAITING");
+    assertThat(enrollmentRepository.countWaitingAhead(session.getId(), w2.id())).isEqualTo(1L);
+  }
+
+  @Test
+  @DisplayName("대기자 취소: 아무도 승급하지 않고 뒤 대기자 순번이 당겨진다")
+  void cancel_waiting_noPromotion() {
+    CourseSession session = newSession(newCourse(), TODAY.plusDays(7), 4);
+    for (long e = 1; e <= 4; e++) {
+      service.enroll(session.getId(), e);
+    }
+    EnrollmentResponse w1 = service.enroll(session.getId(), 5L);
+    EnrollmentResponse w2 = service.enroll(session.getId(), 6L);
+
+    EnrollmentResponse canceled = service.cancel(w1.id(), 5L);
+
+    assertThat(canceled.status()).isEqualTo("CANCELED");
+    assertThat(statusOf(w2.id())).isEqualTo("WAITING");
+    assertThat(enrollmentRepository.countWaitingAhead(session.getId(), w2.id())).isEqualTo(1L);
+    assertThat(
+            enrollmentRepository.countBySessionIdAndStatus(
+                session.getId(), EnrollmentStatus.CONFIRMED))
+        .isEqualTo(4L);
+  }
+
+  @Test
+  @DisplayName("오늘 = 시작일 - 1: 확정자 취소는 성공하지만 승급하지 않는다")
+  void cancel_dayBeforeStart_noPromotion() {
+    LocalDate start = TODAY.plusDays(7);
+    CourseSession session = newSession(newCourse(), start, 2);
+    EnrollmentResponse first = service.enroll(session.getId(), 1L);
+    service.enroll(session.getId(), 2L);
+    EnrollmentResponse w = service.enroll(session.getId(), 3L);
+    clock.set(start.minusDays(1).atTime(10, 0).atZone(KST));
+
+    EnrollmentResponse canceled = service.cancel(first.id(), 1L);
+
+    assertThat(canceled.status()).isEqualTo("CANCELED");
+    assertThat(statusOf(w.id())).isEqualTo("WAITING");
+  }
+
+  @Test
+  @DisplayName("오늘 = 시작일 - 2 (23:59): 승급 기간의 마지막 날이라 대기 1순위가 확정된다")
+  void cancel_twoDaysBeforeStart_promotes() {
+    LocalDate start = TODAY.plusDays(7);
+    CourseSession session = newSession(newCourse(), start, 2);
+    EnrollmentResponse first = service.enroll(session.getId(), 1L);
+    service.enroll(session.getId(), 2L);
+    EnrollmentResponse w = service.enroll(session.getId(), 3L);
+    clock.set(start.minusDays(2).atTime(23, 59, 59).atZone(KST));
+
+    service.cancel(first.id(), 1L);
+
+    assertThat(statusOf(w.id())).isEqualTo("CONFIRMED");
+  }
+
+  @Test
+  @DisplayName("빈 자리 + 대기자 있음(전날 취소 후): 새 신청은 새치기하지 못하고 WAITING")
+  void enroll_afterNoPromotionCancel_waiting() {
+    LocalDate start = TODAY.plusDays(7);
+    CourseSession session = newSession(newCourse(), start, 4);
+    EnrollmentResponse first = service.enroll(session.getId(), 1L);
+    for (long e = 2; e <= 4; e++) {
+      service.enroll(session.getId(), e);
+    }
+    EnrollmentResponse w = service.enroll(session.getId(), 5L);
+    clock.set(start.minusDays(1).atTime(10, 0).atZone(KST));
+    service.cancel(first.id(), 1L);
+
+    EnrollmentResponse late = service.enroll(session.getId(), 6L);
+
+    assertThat(late.status()).isEqualTo("WAITING");
+    assertThat(late.waitingNumber()).isEqualTo(2);
+    assertThat(statusOf(w.id())).isEqualTo("WAITING");
+  }
+
+  @Test
+  @DisplayName("오늘 = 시작일에 취소하면 CancelPeriodEndedException")
+  void cancel_onStartDate_throws() {
+    LocalDate start = TODAY.plusDays(3);
+    CourseSession session = newSession(newCourse(), start, 2);
+    EnrollmentResponse e = service.enroll(session.getId(), 1L);
+    clock.set(start.atTime(9, 0).atZone(KST));
+
+    assertThatThrownBy(() -> service.cancel(e.id(), 1L))
+        .isInstanceOf(CancelPeriodEndedException.class);
+    assertThat(statusOf(e.id())).isEqualTo("CONFIRMED");
+  }
+
+  @Test
+  @DisplayName("남의 신청이나 없는 신청을 취소하면 EnrollmentNotFoundException")
+  void cancel_notOwnerOrMissing_throws() {
+    CourseSession session = newSession(newCourse(), NEXT_MONTH, 2);
+    EnrollmentResponse e = service.enroll(session.getId(), 1L);
+
+    assertThatThrownBy(() -> service.cancel(e.id(), 2L))
+        .isInstanceOf(EnrollmentNotFoundException.class);
+    assertThatThrownBy(() -> service.cancel(999_999L, 1L))
+        .isInstanceOf(EnrollmentNotFoundException.class);
+    assertThat(statusOf(e.id())).isEqualTo("CONFIRMED");
+  }
+
+  @Test
+  @DisplayName("이미 취소된 신청을 다시 취소하면 EnrollmentNotCancelableException")
+  void cancel_twice_throws() {
+    CourseSession session = newSession(newCourse(), NEXT_MONTH, 2);
+    EnrollmentResponse e = service.enroll(session.getId(), 1L);
+    service.cancel(e.id(), 1L);
+
+    assertThatThrownBy(() -> service.cancel(e.id(), 1L))
+        .isInstanceOf(EnrollmentNotCancelableException.class);
+  }
+
+  @Test
+  @DisplayName("취소 후 같은 과정에 다시 신청할 수 있다")
+  void enroll_afterCancel_succeeds() {
+    CourseSession session = newSession(newCourse(), NEXT_MONTH, 2);
+    EnrollmentResponse e = service.enroll(session.getId(), 1L);
+    service.cancel(e.id(), 1L);
+
+    EnrollmentResponse again = service.enroll(session.getId(), 1L);
+
+    assertThat(again.status()).isEqualTo("CONFIRMED");
+    assertThat(again.id()).isNotEqualTo(e.id());
   }
 
   @Test
