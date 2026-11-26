@@ -54,6 +54,7 @@ export interface EnrollmentResponse {
     'courseId'?: number;
     'employeeId'?: number;
     'status'?: string;
+    'waitingNumber'?: number;
     'enrolledAt'?: string;
 }
 export interface ErrorResponse {
@@ -645,7 +646,49 @@ export type GetCoursesStatusEnum = typeof GetCoursesStatusEnum[keyof typeof GetC
 export const EnrollmentApiAxiosParamCreator = function (configuration?: Configuration) {
     return {
         /**
-         * 회차에 수강 신청한다. 자리가 있으면 CONFIRMED, 정원이 차면 WAITING으로 등록한다 (FR-04). X-Employee-Id는 인증 전 임시 방식, 공유 환경 배포 금지
+         * 본인의 신청(확정·대기)을 취소한다 (FR-06). 회차 시작일 당일부터는 취소할 수 없다 (D-02, D-07). 확정자가 취소하면 대기 1순위가 자동으로 확정되지만, 회차 시작 1일 전부터는 승급하지 않고 자리만 빈다 (D-03). 응답에 승급된 사람 정보는 없다. X-Employee-Id는 인증 전 임시 방식, 공유 환경 배포 금지
+         * @summary 수강 신청 취소
+         * @param {number} enrollmentId 
+         * @param {number} xEmployeeId 임시 직원 번호. 인증(NFR-03) 전까지만 쓰며 서버가 검증하지 않는다. TODO(NFR-03)
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        cancel: async (enrollmentId: number, xEmployeeId: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'enrollmentId' is not null or undefined
+            assertParamExists('cancel', 'enrollmentId', enrollmentId)
+            // verify required parameter 'xEmployeeId' is not null or undefined
+            assertParamExists('cancel', 'xEmployeeId', xEmployeeId)
+            const localVarPath = `/api/v1/enrollments/{enrollmentId}/cancel`
+                .replace('{enrollmentId}', encodeURIComponent(String(enrollmentId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            localVarHeaderParameter['Accept'] = '*/*';
+
+            if (xEmployeeId != null) {
+                localVarHeaderParameter['X-Employee-Id'] = typeof xEmployeeId === 'string'
+                    ? xEmployeeId
+                    : JSON.stringify(xEmployeeId, replaceWithSerializableTypeIfNeeded);
+            }
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 회차에 수강 신청한다. 자리가 있고 대기자가 없으면 CONFIRMED, 정원이 차면(또는 대기자가 있으면) WAITING으로 등록하고 응답의 waitingNumber에 대기 순번(1부터)을 준다 (FR-04, FR-05). 대기 인원은 정원의 50%(내림)까지이며 넘으면 WAITLIST_FULL (D-03, D-06). X-Employee-Id는 인증 전 임시 방식, 공유 환경 배포 금지
          * @summary 수강 신청
          * @param {number} sessionId 
          * @param {number} xEmployeeId 임시 직원 번호. 인증(NFR-03) 전까지만 쓰며 서버가 검증하지 않는다. TODO(NFR-03)
@@ -696,7 +739,21 @@ export const EnrollmentApiFp = function(configuration?: Configuration) {
     const localVarAxiosParamCreator = EnrollmentApiAxiosParamCreator(configuration)
     return {
         /**
-         * 회차에 수강 신청한다. 자리가 있으면 CONFIRMED, 정원이 차면 WAITING으로 등록한다 (FR-04). X-Employee-Id는 인증 전 임시 방식, 공유 환경 배포 금지
+         * 본인의 신청(확정·대기)을 취소한다 (FR-06). 회차 시작일 당일부터는 취소할 수 없다 (D-02, D-07). 확정자가 취소하면 대기 1순위가 자동으로 확정되지만, 회차 시작 1일 전부터는 승급하지 않고 자리만 빈다 (D-03). 응답에 승급된 사람 정보는 없다. X-Employee-Id는 인증 전 임시 방식, 공유 환경 배포 금지
+         * @summary 수강 신청 취소
+         * @param {number} enrollmentId 
+         * @param {number} xEmployeeId 임시 직원 번호. 인증(NFR-03) 전까지만 쓰며 서버가 검증하지 않는다. TODO(NFR-03)
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async cancel(enrollmentId: number, xEmployeeId: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<EnrollmentResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.cancel(enrollmentId, xEmployeeId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['EnrollmentApi.cancel']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * 회차에 수강 신청한다. 자리가 있고 대기자가 없으면 CONFIRMED, 정원이 차면(또는 대기자가 있으면) WAITING으로 등록하고 응답의 waitingNumber에 대기 순번(1부터)을 준다 (FR-04, FR-05). 대기 인원은 정원의 50%(내림)까지이며 넘으면 WAITLIST_FULL (D-03, D-06). X-Employee-Id는 인증 전 임시 방식, 공유 환경 배포 금지
          * @summary 수강 신청
          * @param {number} sessionId 
          * @param {number} xEmployeeId 임시 직원 번호. 인증(NFR-03) 전까지만 쓰며 서버가 검증하지 않는다. TODO(NFR-03)
@@ -719,7 +776,17 @@ export const EnrollmentApiFactory = function (configuration?: Configuration, bas
     const localVarFp = EnrollmentApiFp(configuration)
     return {
         /**
-         * 회차에 수강 신청한다. 자리가 있으면 CONFIRMED, 정원이 차면 WAITING으로 등록한다 (FR-04). X-Employee-Id는 인증 전 임시 방식, 공유 환경 배포 금지
+         * 본인의 신청(확정·대기)을 취소한다 (FR-06). 회차 시작일 당일부터는 취소할 수 없다 (D-02, D-07). 확정자가 취소하면 대기 1순위가 자동으로 확정되지만, 회차 시작 1일 전부터는 승급하지 않고 자리만 빈다 (D-03). 응답에 승급된 사람 정보는 없다. X-Employee-Id는 인증 전 임시 방식, 공유 환경 배포 금지
+         * @summary 수강 신청 취소
+         * @param {EnrollmentApiCancelRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        cancel(requestParameters: EnrollmentApiCancelRequest, options?: RawAxiosRequestConfig): AxiosPromise<EnrollmentResponse> {
+            return localVarFp.cancel(requestParameters.enrollmentId, requestParameters.xEmployeeId, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * 회차에 수강 신청한다. 자리가 있고 대기자가 없으면 CONFIRMED, 정원이 차면(또는 대기자가 있으면) WAITING으로 등록하고 응답의 waitingNumber에 대기 순번(1부터)을 준다 (FR-04, FR-05). 대기 인원은 정원의 50%(내림)까지이며 넘으면 WAITLIST_FULL (D-03, D-06). X-Employee-Id는 인증 전 임시 방식, 공유 환경 배포 금지
          * @summary 수강 신청
          * @param {EnrollmentApiEnrollRequest} requestParameters Request parameters.
          * @param {*} [options] Override http request option.
@@ -730,6 +797,18 @@ export const EnrollmentApiFactory = function (configuration?: Configuration, bas
         },
     };
 };
+
+/**
+ * Request parameters for cancel operation in EnrollmentApi.
+ */
+export interface EnrollmentApiCancelRequest {
+    readonly enrollmentId: number
+
+    /**
+     * 임시 직원 번호. 인증(NFR-03) 전까지만 쓰며 서버가 검증하지 않는다. TODO(NFR-03)
+     */
+    readonly xEmployeeId: number
+}
 
 /**
  * Request parameters for enroll operation in EnrollmentApi.
@@ -748,7 +827,18 @@ export interface EnrollmentApiEnrollRequest {
  */
 export class EnrollmentApi extends BaseAPI {
     /**
-     * 회차에 수강 신청한다. 자리가 있으면 CONFIRMED, 정원이 차면 WAITING으로 등록한다 (FR-04). X-Employee-Id는 인증 전 임시 방식, 공유 환경 배포 금지
+     * 본인의 신청(확정·대기)을 취소한다 (FR-06). 회차 시작일 당일부터는 취소할 수 없다 (D-02, D-07). 확정자가 취소하면 대기 1순위가 자동으로 확정되지만, 회차 시작 1일 전부터는 승급하지 않고 자리만 빈다 (D-03). 응답에 승급된 사람 정보는 없다. X-Employee-Id는 인증 전 임시 방식, 공유 환경 배포 금지
+     * @summary 수강 신청 취소
+     * @param {EnrollmentApiCancelRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     */
+    public cancel(requestParameters: EnrollmentApiCancelRequest, options?: RawAxiosRequestConfig) {
+        return EnrollmentApiFp(this.configuration).cancel(requestParameters.enrollmentId, requestParameters.xEmployeeId, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * 회차에 수강 신청한다. 자리가 있고 대기자가 없으면 CONFIRMED, 정원이 차면(또는 대기자가 있으면) WAITING으로 등록하고 응답의 waitingNumber에 대기 순번(1부터)을 준다 (FR-04, FR-05). 대기 인원은 정원의 50%(내림)까지이며 넘으면 WAITLIST_FULL (D-03, D-06). X-Employee-Id는 인증 전 임시 방식, 공유 환경 배포 금지
      * @summary 수강 신청
      * @param {EnrollmentApiEnrollRequest} requestParameters Request parameters.
      * @param {*} [options] Override http request option.
