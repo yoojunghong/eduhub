@@ -31,7 +31,7 @@ import org.springframework.test.context.ActiveProfiles;
 @DataJpaTest
 @AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.EMBEDDED)
 @ActiveProfiles("test")
-@Import(CourseCommandService.class)
+@Import({CourseCommandService.class, SessionCountReader.class})
 class CourseCommandServiceTest {
 
   private static final LocalDate NEXT_MONTH = LocalDate.now().plusMonths(1);

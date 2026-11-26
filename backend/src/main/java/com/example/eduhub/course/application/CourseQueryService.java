@@ -3,16 +3,10 @@ package com.example.eduhub.course.application;
 import com.example.eduhub.common.api.PageResponse;
 import com.example.eduhub.course.api.CourseDetailResponse;
 import com.example.eduhub.course.api.CourseSummaryResponse;
-import com.example.eduhub.course.domain.Course;
 import com.example.eduhub.course.domain.CourseNotFoundException;
 import com.example.eduhub.course.domain.CourseRepository;
-import com.example.eduhub.course.domain.CourseSession;
 import com.example.eduhub.course.domain.CourseStatus;
-import com.example.eduhub.enrollment.domain.EnrollmentRepository;
-import com.example.eduhub.enrollment.domain.SessionCount;
 import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,12 +16,12 @@ import org.springframework.transaction.annotation.Transactional;
 public class CourseQueryService {
 
   private final CourseRepository courseRepository;
-  private final EnrollmentRepository enrollmentRepository;
+  private final SessionCountReader sessionCountReader;
 
   public CourseQueryService(
-      CourseRepository courseRepository, EnrollmentRepository enrollmentRepository) {
+      CourseRepository courseRepository, SessionCountReader sessionCountReader) {
     this.courseRepository = courseRepository;
-    this.enrollmentRepository = enrollmentRepository;
+    this.sessionCountReader = sessionCountReader;
   }
 
   /** 임직원 목록: 운영 중(OPEN)인 과정만 보여 준다. */
@@ -55,29 +49,11 @@ public class CourseQueryService {
   public CourseDetailResponse get(Long id) {
     return courseRepository
         .findWithSessionsById(id)
-        .map(course ->
-            CourseDetailResponse.from(course, confirmedBySession(course), waitingBySession(course)))
+        .map(course -> {
+          SessionCountReader.Counts counts = sessionCountReader.read(course);
+          return CourseDetailResponse.from(course, counts.confirmed(), counts.waiting());
+        })
         .orElseThrow(() -> new CourseNotFoundException(id));
-  }
-
-  /** 회차별 확정 수를 쿼리 한 번으로 집계한다 (N+1 방지). 확정이 없는 회차는 맵에 없다. */
-  private Map<Long, Long> confirmedBySession(Course course) {
-    List<Long> ids = course.getSessions().stream().map(CourseSession::getId).toList();
-    if (ids.isEmpty()) {
-      return Map.of();
-    }
-    return enrollmentRepository.countConfirmedBySessionIds(ids).stream()
-        .collect(Collectors.toMap(SessionCount::sessionId, SessionCount::count));
-  }
-
-  /** 회차별 대기 수를 쿼리 한 번으로 집계한다 (N+1 방지). 대기가 없는 회차는 맵에 없다. */
-  private Map<Long, Long> waitingBySession(Course course) {
-    List<Long> ids = course.getSessions().stream().map(CourseSession::getId).toList();
-    if (ids.isEmpty()) {
-      return Map.of();
-    }
-    return enrollmentRepository.countWaitingBySessionIds(ids).stream()
-        .collect(Collectors.toMap(SessionCount::sessionId, SessionCount::count));
   }
 
   private static String blankToEmpty(String value) {

@@ -32,7 +32,7 @@ import org.springframework.test.context.ActiveProfiles;
 @DataJpaTest
 @AutoConfigureEmbeddedDatabase(provider = AutoConfigureEmbeddedDatabase.DatabaseProvider.EMBEDDED)
 @ActiveProfiles("test")
-@Import(CourseQueryService.class)
+@Import({CourseQueryService.class, SessionCountReader.class})
 class CourseQueryServiceTest {
 
   private static final OffsetDateTime NOW = OffsetDateTime.now();
@@ -75,6 +75,8 @@ class CourseQueryServiceTest {
     enrollmentRepository.save(Enrollment.confirm(waited, 1L, NOW));
     enrollmentRepository.save(Enrollment.waiting(waited, 2L, NOW));
     enrollmentRepository.save(Enrollment.waiting(waited, 3L, NOW));
+    Enrollment canceled = enrollmentRepository.save(Enrollment.waiting(waited, 4L, NOW));
+    canceled.cancel(); // 취소된 신청은 대기 수에 잡히지 않는다
     em.flush();
     em.clear();
 

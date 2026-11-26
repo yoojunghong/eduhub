@@ -8,13 +8,8 @@ import com.example.eduhub.course.api.SessionResponse;
 import com.example.eduhub.course.domain.Course;
 import com.example.eduhub.course.domain.CourseNotFoundException;
 import com.example.eduhub.course.domain.CourseRepository;
-import com.example.eduhub.course.domain.CourseSession;
 import com.example.eduhub.course.domain.CourseSessionRepository;
-import com.example.eduhub.enrollment.domain.EnrollmentRepository;
-import com.example.eduhub.enrollment.domain.SessionCount;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,15 +20,15 @@ public class CourseCommandService {
 
   private final CourseRepository courseRepository;
   private final CourseSessionRepository sessionRepository;
-  private final EnrollmentRepository enrollmentRepository;
+  private final SessionCountReader sessionCountReader;
 
   public CourseCommandService(
       CourseRepository courseRepository,
       CourseSessionRepository sessionRepository,
-      EnrollmentRepository enrollmentRepository) {
+      SessionCountReader sessionCountReader) {
     this.courseRepository = courseRepository;
     this.sessionRepository = sessionRepository;
-    this.enrollmentRepository = enrollmentRepository;
+    this.sessionCountReader = sessionCountReader;
   }
 
   public CourseDetailResponse create(CourseCreateRequest request) {
@@ -46,7 +41,7 @@ public class CourseCommandService {
   public CourseDetailResponse update(Long id, CourseUpdateRequest request) {
     Course course = findWithSessions(id);
     course.update(request.title(), request.category(), request.description());
-    return CourseDetailResponse.from(course, confirmedBySession(course), waitingBySession(course));
+    return detail(course);
   }
 
   public SessionResponse addSession(Long id, SessionCreateRequest request) {
@@ -63,7 +58,7 @@ public class CourseCommandService {
   public CourseDetailResponse close(Long id) {
     Course course = findWithSessions(id);
     course.close();
-    return CourseDetailResponse.from(course, confirmedBySession(course), waitingBySession(course));
+    return detail(course);
   }
 
   private Course findWithSessions(Long id) {
@@ -72,23 +67,8 @@ public class CourseCommandService {
         .orElseThrow(() -> new CourseNotFoundException(id));
   }
 
-  /** 회차별 확정 수를 쿼리 한 번으로 집계한다 (N+1 방지). 확정이 없는 회차는 맵에 없다. */
-  private Map<Long, Long> confirmedBySession(Course course) {
-    List<Long> ids = course.getSessions().stream().map(CourseSession::getId).toList();
-    if (ids.isEmpty()) {
-      return Map.of();
-    }
-    return enrollmentRepository.countConfirmedBySessionIds(ids).stream()
-        .collect(Collectors.toMap(SessionCount::sessionId, SessionCount::count));
-  }
-
-  /** 회차별 대기 수를 쿼리 한 번으로 집계한다 (N+1 방지). 대기가 없는 회차는 맵에 없다. */
-  private Map<Long, Long> waitingBySession(Course course) {
-    List<Long> ids = course.getSessions().stream().map(CourseSession::getId).toList();
-    if (ids.isEmpty()) {
-      return Map.of();
-    }
-    return enrollmentRepository.countWaitingBySessionIds(ids).stream()
-        .collect(Collectors.toMap(SessionCount::sessionId, SessionCount::count));
+  private CourseDetailResponse detail(Course course) {
+    SessionCountReader.Counts counts = sessionCountReader.read(course);
+    return CourseDetailResponse.from(course, counts.confirmed(), counts.waiting());
   }
 }
