@@ -40,21 +40,22 @@ public class CourseCommandService {
     Course course =
         courseRepository.save(
             new Course(request.title(), request.category(), request.description()));
-    return CourseDetailResponse.from(course, Map.of()); // 새 과정은 회차가 없다
+    return CourseDetailResponse.from(course, Map.of(), Map.of()); // 새 과정은 회차가 없다
   }
 
   public CourseDetailResponse update(Long id, CourseUpdateRequest request) {
     Course course = findWithSessions(id);
     course.update(request.title(), request.category(), request.description());
-    return CourseDetailResponse.from(course, confirmedBySession(course));
+    return CourseDetailResponse.from(course, confirmedBySession(course), waitingBySession(course));
   }
 
   public SessionResponse addSession(Long id, SessionCreateRequest request) {
     Course course = findWithSessions(id);
-    // 방금 만든 회차는 신청이 없으므로 확정 수 0
+    // 방금 만든 회차는 신청이 없으므로 확정·대기 수 0
     return SessionResponse.from(
         sessionRepository.save(
             course.addSession(request.startDate(), request.place(), request.capacity())),
+        0,
         0);
   }
 
@@ -62,7 +63,7 @@ public class CourseCommandService {
   public CourseDetailResponse close(Long id) {
     Course course = findWithSessions(id);
     course.close();
-    return CourseDetailResponse.from(course, confirmedBySession(course));
+    return CourseDetailResponse.from(course, confirmedBySession(course), waitingBySession(course));
   }
 
   private Course findWithSessions(Long id) {
@@ -78,6 +79,16 @@ public class CourseCommandService {
       return Map.of();
     }
     return enrollmentRepository.countConfirmedBySessionIds(ids).stream()
+        .collect(Collectors.toMap(SessionCount::sessionId, SessionCount::count));
+  }
+
+  /** 회차별 대기 수를 쿼리 한 번으로 집계한다 (N+1 방지). 대기가 없는 회차는 맵에 없다. */
+  private Map<Long, Long> waitingBySession(Course course) {
+    List<Long> ids = course.getSessions().stream().map(CourseSession::getId).toList();
+    if (ids.isEmpty()) {
+      return Map.of();
+    }
+    return enrollmentRepository.countWaitingBySessionIds(ids).stream()
         .collect(Collectors.toMap(SessionCount::sessionId, SessionCount::count));
   }
 }

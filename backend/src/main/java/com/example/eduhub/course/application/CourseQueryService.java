@@ -55,7 +55,8 @@ public class CourseQueryService {
   public CourseDetailResponse get(Long id) {
     return courseRepository
         .findWithSessionsById(id)
-        .map(course -> CourseDetailResponse.from(course, confirmedBySession(course)))
+        .map(course ->
+            CourseDetailResponse.from(course, confirmedBySession(course), waitingBySession(course)))
         .orElseThrow(() -> new CourseNotFoundException(id));
   }
 
@@ -66,6 +67,16 @@ public class CourseQueryService {
       return Map.of();
     }
     return enrollmentRepository.countConfirmedBySessionIds(ids).stream()
+        .collect(Collectors.toMap(SessionCount::sessionId, SessionCount::count));
+  }
+
+  /** 회차별 대기 수를 쿼리 한 번으로 집계한다 (N+1 방지). 대기가 없는 회차는 맵에 없다. */
+  private Map<Long, Long> waitingBySession(Course course) {
+    List<Long> ids = course.getSessions().stream().map(CourseSession::getId).toList();
+    if (ids.isEmpty()) {
+      return Map.of();
+    }
+    return enrollmentRepository.countWaitingBySessionIds(ids).stream()
         .collect(Collectors.toMap(SessionCount::sessionId, SessionCount::count));
   }
 

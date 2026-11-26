@@ -14,12 +14,17 @@ public record CourseDetailResponse(
     String status,
     List<SessionResponse> sessions) {
 
-  /** confirmedBySession: 회차 id별 확정 신청 수. 맵에 없는 회차는 0으로 본다. */
-  public static CourseDetailResponse from(Course course, Map<Long, Long> confirmedBySession) {
+  /** confirmedBySession, waitingBySession: 회차 id별 확정·대기 신청 수. 맵에 없는 회차는 0으로 본다. */
+  public static CourseDetailResponse from(
+      Course course, Map<Long, Long> confirmedBySession, Map<Long, Long> waitingBySession) {
     List<SessionResponse> sessions =
         course.getSessions().stream()
             .sorted(Comparator.comparing(CourseSession::getStartDate))
-            .map(s -> SessionResponse.from(s, confirmedBySession.getOrDefault(s.getId(), 0L)))
+            .map(s ->
+                SessionResponse.from(
+                    s,
+                    confirmedBySession.getOrDefault(s.getId(), 0L),
+                    waitingBySession.getOrDefault(s.getId(), 0L)))
             .toList();
     return new CourseDetailResponse(
         course.getId(),

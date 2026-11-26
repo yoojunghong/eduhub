@@ -125,14 +125,16 @@ class CourseControllerTest {
                 "OPEN",
                 List.of(
                     new SessionResponse(
-                        10L, LocalDate.of(2026, 12, 1), "본사 3층 교육장", 20, 20, "OPEN"))));
+                        10L, LocalDate.of(2026, 12, 1), "본사 3층 교육장", 20, 20, "OPEN", 2, 10))));
 
     mockMvc
         .perform(get("/api/v1/courses/1"))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.title").value("Spring Boot 입문"))
         .andExpect(jsonPath("$.sessions[0].startDate").value("2026-12-01"))
-        .andExpect(jsonPath("$.sessions[0].remainingSeats").value(20));
+        .andExpect(jsonPath("$.sessions[0].remainingSeats").value(20))
+        .andExpect(jsonPath("$.sessions[0].waitingCount").value(2))
+        .andExpect(jsonPath("$.sessions[0].waitlistLimit").value(10));
   }
 
   @Test
@@ -203,7 +205,7 @@ class CourseControllerTest {
   void addSession_returns201() throws Exception {
     LocalDate date = LocalDate.now().plusMonths(1);
     given(courseCommandService.addSession(eq(1L), any()))
-        .willReturn(new SessionResponse(10L, date, "본사 3층", 20, 20, "OPEN"));
+        .willReturn(new SessionResponse(10L, date, "본사 3층", 20, 20, "OPEN", 0, 10));
 
     mockMvc
         .perform(

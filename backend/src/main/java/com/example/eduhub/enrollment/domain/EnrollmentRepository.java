@@ -34,6 +34,17 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
       """)
   List<SessionCount> countConfirmedBySessionIds(@Param("sessionIds") List<Long> sessionIds);
 
+  /** 회차별 대기 인원을 한 번에 집계한다 (N+1 방지). 대기자가 없는 회차는 결과에 없다. */
+  @Query(
+      """
+      select new com.example.eduhub.enrollment.domain.SessionCount(e.session.id, count(e))
+      from Enrollment e
+      where e.session.id in :sessionIds
+        and e.status = com.example.eduhub.enrollment.domain.EnrollmentStatus.WAITING
+      group by e.session.id
+      """)
+  List<SessionCount> countWaitingBySessionIds(@Param("sessionIds") List<Long> sessionIds);
+
   /** 같은 회차 대기자 중 id가 이 신청 이하인 수 = 대기 순번 (자기 자신 포함). */
   @Query(
       """

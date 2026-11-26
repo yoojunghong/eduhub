@@ -2,6 +2,7 @@ package com.example.eduhub.enrollment.api;
 
 import com.example.eduhub.enrollment.domain.Enrollment;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
 
 public record EnrollmentResponse(
     Long id,
@@ -11,6 +12,8 @@ public record EnrollmentResponse(
     String status,
     Integer waitingNumber,
     OffsetDateTime enrolledAt) {
+
+  private static final ZoneId KST = ZoneId.of("Asia/Seoul");
 
   public static EnrollmentResponse from(Enrollment enrollment) {
     return from(enrollment, null);
@@ -25,6 +28,6 @@ public record EnrollmentResponse(
         enrollment.getEmployeeId(),
         enrollment.getStatus().name(),
         waitingNumber,
-        enrollment.getEnrolledAt());
+        enrollment.getEnrolledAt().atZoneSameInstant(KST).toOffsetDateTime());
   }
 }
