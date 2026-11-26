@@ -352,6 +352,39 @@ class EnrollmentServiceTest {
   }
 
   @Test
+  @DisplayName("오늘 = 시작일 - 1 (00:00:00): 확정자 취소는 성공하지만 승급하지 않는다")
+  void cancel_dayBeforeStartMidnight_noPromotion() {
+    LocalDate start = TODAY.plusDays(7);
+    CourseSession session = newSession(newCourse(), start, 2);
+    EnrollmentResponse first = service.enroll(session.getId(), 1L);
+    service.enroll(session.getId(), 2L);
+    EnrollmentResponse w = service.enroll(session.getId(), 3L);
+    clock.set(start.minusDays(1).atStartOfDay(KST));
+
+    EnrollmentResponse canceled = service.cancel(first.id(), 1L);
+
+    assertThat(canceled.status()).isEqualTo("CANCELED");
+    assertThat(statusOf(w.id())).isEqualTo("WAITING");
+  }
+
+  @Test
+  @DisplayName("취소 마감 경계: 시작 전날 23:59:59.999는 성공, 시작일 00:00은 CancelPeriodEndedException")
+  void cancel_deadlineBoundary() {
+    LocalDate start = TODAY.plusDays(7);
+    CourseSession session = newSession(newCourse(), start, 2);
+    EnrollmentResponse e1 = service.enroll(session.getId(), 1L);
+    EnrollmentResponse e2 = service.enroll(session.getId(), 2L);
+
+    clock.set(start.minusDays(1).atTime(23, 59, 59, 999_000_000).atZone(KST));
+    assertThat(service.cancel(e1.id(), 1L).status()).isEqualTo("CANCELED");
+
+    clock.set(start.atStartOfDay(KST));
+    assertThatThrownBy(() -> service.cancel(e2.id(), 2L))
+        .isInstanceOf(CancelPeriodEndedException.class);
+    assertThat(statusOf(e2.id())).isEqualTo("CONFIRMED");
+  }
+
+  @Test
   @DisplayName("빈 자리 + 대기자 있음(전날 취소 후): 새 신청은 새치기하지 못하고 WAITING")
   void enroll_afterNoPromotionCancel_waiting() {
     LocalDate start = TODAY.plusDays(7);
