@@ -6,11 +6,12 @@ Spring Boot 3.5, Java 21, Gradle Kotlin DSL. 기본 패키지 `com.example.eduhu
 - 테스트: `./gradlew test`
 - 포맷: `./gradlew spotlessApply` (검사는 `spotlessCheck`, `check`에 포함)
 - 로컬 실행(DB 설치 없이): `./gradlew bootTestRun` → 내장 PostgreSQL + 샘플 데이터 (`src/test/.../LocalEduhubApplication`)
+  - 계정 E1001·E1002(사원), A0001(관리자), 비밀번호 dev-password
 - 프로필: `dev`(기본, 로컬 PostgreSQL), `test`(자동 테스트)
 - DB 테스트는 Docker 없이 `@AutoConfigureEmbeddedDatabase(provider = EMBEDDED)`로 PostgreSQL을 띄운다 (Testcontainers 쓰지 않음)
 
 ## 계층 규칙
-- 도메인별 패키지 `course`, `enrollment`, `common` 안에 계층을 둔다 (NFR-07)
+- 도메인별 패키지 `course`, `enrollment`, `employee`, `auth`, `common` 안에 계층을 둔다 (NFR-07)
 - Controller → Service → Repository. Controller에서 Repository 직접 호출 금지
 
 ## JPA 규칙

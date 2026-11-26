@@ -3,6 +3,9 @@ package com.example.eduhub;
 import com.example.eduhub.course.domain.Course;
 import com.example.eduhub.course.domain.CourseRepository;
 import com.example.eduhub.course.domain.CourseSession;
+import com.example.eduhub.employee.domain.Employee;
+import com.example.eduhub.employee.domain.EmployeeRepository;
+import com.example.eduhub.employee.domain.EmployeeRole;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import jakarta.persistence.EntityManager;
 import java.io.IOException;
@@ -13,6 +16,7 @@ import javax.sql.DataSource;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.support.TransactionTemplate;
 
 /** {@link LocalEduhubApplication} 전용 설정: 내장 PostgreSQL과 화면 확인용 샘플 과정. */
@@ -27,6 +31,24 @@ class LocalDevConfiguration {
   @Bean
   DataSource dataSource(EmbeddedPostgres embeddedPostgres) {
     return embeddedPostgres.getPostgresDatabase();
+  }
+
+  @Bean
+  ApplicationRunner devAccounts(EmployeeRepository employeeRepository, PasswordEncoder encoder) {
+    return args -> {
+      String[][] accounts = {
+        {"E1001", "김사원", "개발1팀", "EMPLOYEE"},
+        {"E1002", "이사원", "개발2팀", "EMPLOYEE"},
+        {"A0001", "박관리", "인사팀", "ADMIN"},
+      };
+      for (String[] a : accounts) {
+        if (employeeRepository.findByEmployeeNo(a[0]).isEmpty()) {
+          employeeRepository.save(
+              new Employee(
+                  a[0], a[1], a[2], encoder.encode("dev-password"), EmployeeRole.valueOf(a[3])));
+        }
+      }
+    };
   }
 
   @Bean
