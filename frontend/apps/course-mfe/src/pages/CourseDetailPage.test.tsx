@@ -20,7 +20,7 @@ beforeEach(() => {
 });
 
 const openSession = (remainingSeats: number) =>
-  ({ id: 10, startDate: '2026-12-01', place: '본관 301호', capacity: 20, remainingSeats, status: 'OPEN' });
+  ({ id: 10, startDate: '2026-12-01', place: '본관 301호', capacity: 20, remainingSeats, waitingCount: 0, waitlistLimit: 10, status: 'OPEN' });
 
 test('자리가 있으면 신청하고, 확정되면 안내한 뒤 다시 불러온다', async () => {
   mockUseCourse.mockReturnValue({ ...course([openSession(5)]), reload });
@@ -41,7 +41,7 @@ test('남은 자리가 없으면 대기 신청 버튼이고, 대기 등록을 �
 
   fireEvent.click(screen.getByRole('button', { name: '대기 신청' }));
 
-  expect(await screen.findByText('정원이 차서 대기자로 등록되었습니다.')).toBeInTheDocument();
+  expect(await screen.findByText('대기자로 등록되었습니다.')).toBeInTheDocument();
 });
 
 test('대기 결과에 순번이 있으면 대기 N번으로 안내한다', async () => {
@@ -51,7 +51,7 @@ test('대기 결과에 순번이 있으면 대기 N번으로 안내한다', asyn
 
   fireEvent.click(screen.getByRole('button', { name: '대기 신청' }));
 
-  expect(await screen.findByText('정원이 차서 대기 3번으로 등록되었습니다.')).toBeInTheDocument();
+  expect(await screen.findByText('대기 3번으로 등록되었습니다.')).toBeInTheDocument();
 });
 
 test('대기 인원이 가득 차면(WAITLIST_FULL) 이유를 보여 준다', async () => {
@@ -64,6 +64,30 @@ test('대기 인원이 가득 차면(WAITLIST_FULL) 이유를 보여 준다', as
   fireEvent.click(screen.getByRole('button', { name: '대기 신청' }));
 
   expect(await screen.findByRole('alert')).toHaveTextContent('대기 인원이 가득 찼습니다.');
+});
+
+test('빈 자리가 있어도 대기자가 있으면 대기 신청 버튼이다', () => {
+  mockUseCourse.mockReturnValue({ ...course([{ ...openSession(2), waitingCount: 1 }]), reload });
+  renderPage();
+
+  expect(screen.getByRole('button', { name: '대기 신청' })).toBeEnabled();
+  expect(screen.getByText('대기 가능')).toBeInTheDocument();
+  expect(screen.queryByText('신청 가능')).not.toBeInTheDocument();
+});
+
+test('대기 상한에 도달하면 마감 버튼이 비활성이고 칩이 마감이다', () => {
+  mockUseCourse.mockReturnValue({ ...course([{ ...openSession(0), waitingCount: 10 }]), reload });
+  renderPage();
+
+  expect(within(screen.getAllByRole('row')[1]).getAllByText('마감')).toHaveLength(2); // 칩 + 버튼
+  expect(screen.getByRole('button', { name: '마감' })).toBeDisabled();
+});
+
+test('정원 1(상한 0)이고 정원이 차면 마감 버튼이 비활성이다', () => {
+  mockUseCourse.mockReturnValue({ ...course([{ ...openSession(0), capacity: 1, waitlistLimit: 0 }]), reload });
+  renderPage();
+
+  expect(screen.getByRole('button', { name: '마감' })).toBeDisabled();
 });
 
 test('중복 신청(409)이면 이유를 보여 준다', async () => {
@@ -115,7 +139,7 @@ const course = (sessions: object[]) => ({
 
 test('과정 정보와 회차(일정, 장소, 정원, 남은 자리)를 보여 준다', () => {
   mockUseCourse.mockReturnValue(
-    course([{ id: 10, startDate: '2026-12-01', place: '본관 301호', capacity: 20, remainingSeats: 5, status: 'OPEN' }]),
+    course([{ id: 10, startDate: '2026-12-01', place: '본관 301호', capacity: 20, remainingSeats: 5, waitingCount: 0, waitlistLimit: 10, status: 'OPEN' }]),
   );
 
   renderPage();
@@ -132,12 +156,12 @@ test('과정 정보와 회차(일정, 장소, 정원, 남은 자리)를 보여 �
 
 test('남은 자리가 0이면 마감으로 표시한다', () => {
   mockUseCourse.mockReturnValue(
-    course([{ id: 10, startDate: '2026-12-01', place: '본관 301호', capacity: 20, remainingSeats: 0, status: 'OPEN' }]),
+    course([{ id: 10, startDate: '2026-12-01', place: '본관 301호', capacity: 20, remainingSeats: 0, waitingCount: 0, waitlistLimit: 0, status: 'OPEN' }]),
   );
 
   renderPage();
 
-  expect(screen.getByText('마감')).toBeInTheDocument();
+  expect(screen.getAllByText('마감')).toHaveLength(2); // 칩 + 버튼
 });
 
 test('회차가 없으면 안내 문구를 보여 준다', () => {

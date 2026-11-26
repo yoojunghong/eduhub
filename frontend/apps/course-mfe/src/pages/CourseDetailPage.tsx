@@ -35,6 +35,15 @@ export function CourseNotFound() {
   );
 }
 
+type EnrollMode = 'ENROLL' | 'WAITLIST' | 'FULL';
+
+/** 회차의 신청 방식. 버튼과 상태 칩이 함께 쓴다. 빈 자리가 있어도 대기자가 있으면 대기열이 먼저다 (설계 2-3). */
+function enrollMode(s: { remainingSeats?: number; waitingCount?: number; waitlistLimit?: number }): EnrollMode {
+  const waitingCount = s.waitingCount ?? 0;
+  if (waitingCount === 0 && (s.remainingSeats ?? 0) > 0) return 'ENROLL';
+  return waitingCount < (s.waitlistLimit ?? 0) ? 'WAITLIST' : 'FULL';
+}
+
 /** 과정 상세와 회차 목록(FR-02). */
 export function CourseDetailPage({ id }: { id: number }) {
   const { data, loading, error, notFound, reload } = useCourse(id);
@@ -51,8 +60,8 @@ export function CourseDetailPage({ id }: { id: number }) {
               severity: 'info',
               message:
                 enrollment.waitingNumber != null
-                  ? `정원이 차서 대기 ${enrollment.waitingNumber}번으로 등록되었습니다.`
-                  : '정원이 차서 대기자로 등록되었습니다.',
+                  ? `대기 ${enrollment.waitingNumber}번으로 등록되었습니다.`
+                  : '대기자로 등록되었습니다.',
             }
           : { severity: 'success', message: '수강 신청이 확정되었습니다.' },
       );
@@ -113,8 +122,10 @@ export function CourseDetailPage({ id }: { id: number }) {
           </TableHead>
           <TableBody>
             {sessions.map((s) => {
-              const full = (s.remainingSeats ?? 0) <= 0;
               const closed = s.status === 'CLOSED';
+              const mode = enrollMode(s);
+              const direct = mode === 'ENROLL';
+              const waitlistFull = mode === 'FULL';
               return (
                 <TableRow key={s.id}>
                   <TableCell>{s.startDate}</TableCell>
@@ -124,8 +135,10 @@ export function CourseDetailPage({ id }: { id: number }) {
                   <TableCell>
                     {closed ? (
                       <Chip size="small" label="종료" />
-                    ) : full ? (
+                    ) : mode === 'FULL' ? (
                       <Chip size="small" color="warning" label="마감" />
+                    ) : mode === 'WAITLIST' ? (
+                      <Chip size="small" color="warning" variant="outlined" label="대기 가능" />
                     ) : (
                       <Chip size="small" color="success" label="신청 가능" />
                     )}
@@ -133,11 +146,11 @@ export function CourseDetailPage({ id }: { id: number }) {
                   <TableCell align="right">
                     <Button
                       size="small"
-                      variant={full ? 'outlined' : 'contained'}
-                      disabled={closed || data.status === 'CLOSED' || enrollingSessionId !== undefined}
+                      variant={direct ? 'contained' : 'outlined'}
+                      disabled={closed || waitlistFull || data.status === 'CLOSED' || enrollingSessionId !== undefined}
                       onClick={() => apply(s.id!)}
                     >
-                      {full ? '대기 신청' : '신청'}
+                      {direct ? '신청' : waitlistFull ? '마감' : '대기 신청'}
                     </Button>
                   </TableCell>
                 </TableRow>
