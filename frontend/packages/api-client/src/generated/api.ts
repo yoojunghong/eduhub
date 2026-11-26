@@ -82,6 +82,14 @@ export interface SessionResponse {
     'capacity'?: number;
     'remainingSeats'?: number;
     'status'?: string;
+    /**
+     * 현재 대기 인원 (WAITING 상태 신청 수)
+     */
+    'waitingCount'?: number;
+    /**
+     * 대기 상한 = 정원 / 2 (내림, D-06)
+     */
+    'waitlistLimit'?: number;
 }
 
 /**
