@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 
@@ -37,6 +38,10 @@ public class JwtConfig {
 
   @Bean
   public JwtDecoder jwtDecoder() {
-    return NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
+    NimbusJwtDecoder decoder =
+        NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
+    // 기본 만료 검사(허용 오차 60초) + 발급자 검사
+    decoder.setJwtValidator(JwtValidators.createDefaultWithIssuer("eduhub"));
+    return decoder;
   }
 }

@@ -41,7 +41,8 @@ class TokenServiceTest {
   }
 
   @Test
-  void ttlSeconds는_3600() {
-    assertThat(tokenService.ttlSeconds()).isEqualTo(3600);
+  void ttlSeconds는_설정한_분을_초로_돌려준다() {
+    TokenService service = new TokenService(jwtConfig.jwtEncoder(), clock, 15);
+    assertThat(service.ttlSeconds()).isEqualTo(900);
   }
 }

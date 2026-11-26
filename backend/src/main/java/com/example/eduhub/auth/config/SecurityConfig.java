@@ -44,6 +44,7 @@ public class SecurityConfig {
             write(
                 response, objectMapper, HttpServletResponse.SC_FORBIDDEN, "FORBIDDEN", "권한이 없습니다.");
 
+    // 쿠키가 아니라 Authorization 헤더 인증이라 CSRF 대상 아님. 쿠키 인증을 추가하면 다시 검토
     http.csrf(AbstractHttpConfigurer::disable)
         .httpBasic(AbstractHttpConfigurer::disable)
         .formLogin(AbstractHttpConfigurer::disable)
@@ -54,7 +55,11 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.GET, "/api/v1/courses/**")
                 .permitAll()
                 .requestMatchers(
-                    "/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/api/health")
+                    "/v3/api-docs/**",
+                    "/swagger-ui/**",
+                    "/swagger-ui.html",
+                    "/api/health",
+                    "/error")
                 .permitAll()
                 .requestMatchers("/api/v1/courses/**")
                 .hasRole("ADMIN")

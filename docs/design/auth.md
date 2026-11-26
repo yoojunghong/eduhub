@@ -40,6 +40,9 @@
 | 그 밖 | 로그인 | | | 401 |
 
 - **401·403 응답 본문**도 기존 `ErrorResponse` 형식으로: 401 `UNAUTHORIZED`("로그인이 필요합니다."), 403 `FORBIDDEN`("권한이 없습니다.") — `AuthenticationEntryPoint`, `AccessDeniedHandler`. 토큰 문제는 `WWW-Authenticate: Bearer` 헤더 유지
+- **공개 GET에 만료·위조 토큰이 붙으면 401** (2026-11-27 결정, Spring 기본 동작 유지). 화면은 401을 받으면 저장한 토큰을 지우고 다시 요청하거나 로그인으로 보낸다(Step 14)
+- `/error`는 공개 — 그래야 비로그인 요청의 404·405·500이 401로 덮이지 않는다
+- 토큰 검증: HS256만, `iss=eduhub` 확인, 시계 허용 오차 60초(기본값)
 - OpenAPI: `bearerAuth`(HTTP bearer, JWT) 보안 스키마를 등록해 Swagger UI에서 **Authorize**로 토큰을 넣을 수 있게 한다. 로그인 API는 보안 요구 없음
 
 ### 토큰
