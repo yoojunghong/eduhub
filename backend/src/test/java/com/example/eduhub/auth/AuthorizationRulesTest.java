@@ -12,6 +12,9 @@ import com.example.eduhub.course.domain.Course;
 import com.example.eduhub.course.domain.CourseRepository;
 import com.example.eduhub.course.domain.CourseSession;
 import com.example.eduhub.course.domain.CourseSessionRepository;
+import com.example.eduhub.employee.domain.Employee;
+import com.example.eduhub.employee.domain.EmployeeRepository;
+import com.example.eduhub.employee.domain.EmployeeRole;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.zonky.test.db.AutoConfigureEmbeddedDatabase;
 import java.time.LocalDate;
@@ -23,6 +26,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -43,6 +47,8 @@ class AuthorizationRulesTest {
   @Autowired private CourseRepository courseRepository;
   @Autowired private CourseSessionRepository sessionRepository;
   @Autowired private JdbcTemplate jdbcTemplate;
+  @Autowired private EmployeeRepository employeeRepository;
+  @Autowired private PasswordEncoder passwordEncoder;
 
   private Long courseId;
   private Long sessionId;
@@ -184,5 +190,61 @@ class AuthorizationRulesTest {
         .perform(post(cancelUrl).with(TestAuth.employee(a)))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.status").value("CANCELED"));
+  }
+
+  private Employee saveEmployee(String no, EmployeeRole role) {
+    return employeeRepository
+        .findByEmployeeNo(no)
+        .orElseGet(() ->
+            employeeRepository.save(
+                new Employee(no, no, null, passwordEncoder.encode("pw-" + no), role)));
+  }
+
+  private String login(String no) throws Exception {
+    String body =
+        objectMapper.writeValueAsString(java.util.Map.of("employeeNo", no, "password", "pw-" + no));
+    String response =
+        mockMvc
+            .perform(
+                post("/api/v1/auth/login").contentType(MediaType.APPLICATION_JSON).content(body))
+            .andExpect(status().isOk())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    return "Bearer " + objectMapper.readTree(response).get("accessToken").asText();
+  }
+
+  @Test
+  @DisplayName("실제 서명 토큰: 사원 과정 등록 403, 관리자 201, 사원 신청은 토큰 sub가 employee_id")
+  void realSignedTokens() throws Exception {
+    Employee emp = saveEmployee("T-RULE-EMP", EmployeeRole.EMPLOYEE);
+    saveEmployee("T-RULE-ADM", EmployeeRole.ADMIN);
+    String empToken = login("T-RULE-EMP");
+    String admToken = login("T-RULE-ADM");
+
+    mockMvc
+        .perform(
+            post("/api/v1/courses")
+                .header("Authorization", empToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(COURSE_JSON))
+        .andExpect(status().isForbidden());
+    mockMvc
+        .perform(
+            post("/api/v1/courses")
+                .header("Authorization", admToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(COURSE_JSON))
+        .andExpect(status().isCreated());
+    mockMvc
+        .perform(
+            post("/api/v1/sessions/" + sessionId + "/enrollments")
+                .header("Authorization", empToken))
+        .andExpect(status().isCreated());
+
+    Long saved =
+        jdbcTemplate.queryForObject(
+            "SELECT employee_id FROM enrollment WHERE session_id = ?", Long.class, sessionId);
+    assertThat(saved).isEqualTo(emp.getId());
   }
 }
