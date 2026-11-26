@@ -179,6 +179,28 @@ class EnrollmentControllerTest {
   }
 
   @Test
+  @DisplayName("취소 시 X-Employee-Id가 0이거나 음수면 400 INVALID_REQUEST")
+  void cancel_nonPositiveHeader_badRequest() throws Exception {
+    mockMvc
+        .perform(post(CANCEL_URL).header(HEADER, "0"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    mockMvc
+        .perform(post(CANCEL_URL).header(HEADER, "-5"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+  }
+
+  @Test
+  @DisplayName("취소 시 X-Employee-Id가 숫자가 아니면 400 INVALID_REQUEST")
+  void cancel_nonNumericHeader_badRequest() throws Exception {
+    mockMvc
+        .perform(post(CANCEL_URL).header(HEADER, "abc"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+  }
+
+  @Test
   @DisplayName("없거나 본인 것이 아닌 신청이면 404 ENROLLMENT_NOT_FOUND")
   void cancel_notFound() throws Exception {
     given(enrollmentService.cancel(5L, 1001L)).willThrow(new EnrollmentNotFoundException(5L));
