@@ -1,0 +1,25 @@
+# 구현계획: NFR-03 인증 기반 (JWT)
+
+설계: `docs/design/auth.md` (질문 1~4 승인). 패키지 루트 `backend/src/main/java/com/example/eduhub` (아래 `…`), 테스트 루트 `backend/src/test/java/com/example/eduhub` (아래 `t…`).
+모든 작업은 `.claude/skills/eduhub-api/SKILL.md` 규칙을 따른다. Java는 Edit/Write로 고친다(훅 포맷). 완료 명령에는 항상 `./gradlew spotlessCheck`를 포함한다.
+
+| 작업 | 변경 파일 | 내용 | 완료 명령 |
+|---|---|---|---|
+| T1 사원 | `db/migration/V3__create_employee.sql`, `…/employee/domain/{Employee,EmployeeRole,EmployeeRepository}.java`, `…/employee/package-info.java`, 테스트 `t…/employee/domain/EmployeeRepositoryTest.java` | 설계 3장 스키마 그대로(FK 없음). `Employee(employeeNo, name, department, passwordHash, role)` 생성자, getter만. `findByEmployeeNo`. 테스트: 저장·조회, **사번 중복 저장 시 `DataIntegrityViolationException`** | `./gradlew test --tests "*EmployeeRepository*"` |
+| T2 토큰·보안 설정 | `build.gradle.kts`(`spring-boot-starter-security`, `spring-boot-starter-oauth2-resource-server`, 테스트 `spring-security-test`), `application.yml`(`eduhub.jwt.secret: ${EDUHUB_JWT_SECRET}`, `ttl-minutes: 60`), **`src/test/resources/config/application-test.yml`**(테스트 전용 비밀 32바이트 이상 — `src/main`의 `application-test.yml`과 겹치지 않게 `config/` 아래: 둘 다 로드되고 이쪽이 우선), `…/auth/config/{SecurityConfig,JwtConfig}.java`, `…/auth/application/TokenService.java`, 테스트 `t…/auth/config/JwtConfigTest.java`, `t…/auth/application/TokenServiceTest.java` | 설계 2장 권한 표 그대로(`HttpMethod.GET /api/v1/courses/**` 공개 → 그 밖 `/api/v1/courses/**` ADMIN → `/api/v1/admin/**` ADMIN → 로그인·문서·health 공개 → `anyRequest().authenticated()`). STATELESS, CSRF·httpBasic·formLogin 끔. `oauth2ResourceServer().jwt()` + `role` → `ROLE_` 변환. 401/403을 `ErrorResponse`(`UNAUTHORIZED`/`FORBIDDEN`)로 쓰는 EntryPoint·AccessDeniedHandler (401에 `WWW-Authenticate: Bearer`). `JwtConfig`: 32바이트 미만이면 `IllegalStateException`, `NimbusJwtEncoder`/`NimbusJwtDecoder.withSecretKey(...).macAlgorithm(HS256)`. `TokenService.issue(Employee)`: 설계 2장 클레임, 발급 시각은 주입된 `Clock`. `PasswordEncoder` = BCrypt. **직접 만든 토큰 파싱 필터 금지.** 테스트: 키 31바이트 실패, 발급 토큰을 디코더로 검증해 클레임 확인, 만료 시각 = 발급+60분 | `./gradlew test --tests "*Jwt*" --tests "*TokenService*"` |
+| T3 로그인 API | `…/auth/application/{LoginService,InvalidCredentialsException,LoginResult}.java`, `…/auth/api/{AuthController,LoginRequest,LoginResponse,CurrentUser}.java`, `…/common/api/GlobalExceptionHandler.java`, `…/common/config/OpenApiConfig.java`(신규, `bearerAuth` 보안 스키마), 테스트 `t…/auth/api/AuthApiTest.java`(SpringBootTest+MockMvc+내장 PG) | `POST /api/v1/auth/login`, `GET /api/v1/me`. `LoginService`가 사번 조회·BCrypt 비교, 없거나 틀리면 같은 `InvalidCredentialsException` → 401 `INVALID_CREDENTIALS` "사번 또는 비밀번호가 올바르지 않습니다." `CurrentUser.from(Jwt)`(`employeeId`, `employeeNo`, `name`, `role`, `isAdmin()`). OpenAPI: 로그인은 보안 요구 없음, 나머지는 `bearerAuth`. 테스트: 설계 6장 로그인·토큰 행(성공 후 `/me`, 틀린 비번·없는 사번 **같은 메시지**, 빈 값 400, 토큰 없음·위조(다른 키)·만료·`alg=none` 401) | `./gradlew test --tests "*AuthApi*"` |
+| T4 기존 API에 적용 | `…/enrollment/api/EnrollmentController.java`, `…/common/api/GlobalExceptionHandler.java`(헤더 관련 핸들러 정리), 테스트 `t…/enrollment/api/EnrollmentControllerTest.java`, `t…/course/api/CourseControllerTest.java`, 신규 `t…/TestAuth.java`(`as(employeeId, role)` = `jwt()` 후처리), 신규 `t…/auth/AuthorizationRulesTest.java`(SpringBootTest+MockMvc) | 신청·취소에서 `X-Employee-Id`·`TODO(NFR-03)` 제거 → `@AuthenticationPrincipal Jwt` → `CurrentUser.from(jwt).employeeId()`. 서비스 시그니처는 그대로. `@Operation` 설명의 임시 헤더 경고 삭제, `@ApiResponse` 401 추가. WebMvc 테스트는 `@Import(SecurityConfig, JwtConfig)`(필요 시) + `TestAuth.as(...)`로 바꾸고, 헤더 검증 테스트(0·음수·문자)는 "토큰 없으면 401"로 대체. `AuthorizationRulesTest`: 설계 6장 권한·신청·취소 행(과정 GET 공개, 과정 등록 401/403/201, 수정·회차·종료 사원 403, `/api/v1/admin/x` 사원 403, 토큰 없이 신청 401, 저장된 신청자 = 토큰 사원, 남의 신청 취소 404 / 본인 200) | `./gradlew test` |
+| T5 로컬 실행 | `t…/LocalEduhubApplication.java`, `t…/LocalDevConfiguration.java`, `backend/CLAUDE.md`(로컬 실행 줄에 계정 안내 한 줄) | `LocalEduhubApplication`에서만 `EDUHUB_JWT_SECRET`이 없으면 로컬 전용 기본값(문자열에 "local-only" 포함)을 속성으로 넣는다(있으면 환경 변수 우선). `LocalDevConfiguration`에 계정 3개(E1001 김사원·E1002 이사원 EMPLOYEE, A0001 박관리 ADMIN, `dev-password` BCrypt). 기존 샘플 과정 유지 | `./gradlew test` + 메인이 `bootTestRun`으로 curl 확인 |
+| T6 화면 영향 정리 | `frontend/apps/course-mfe/src/hooks/useEnroll.ts`(+test) | API 클라이언트 재생성(메인이 백엔드 실행 후 `npm run generate:api`) 뒤, 생성 코드에서 사라진 `xEmployeeId` 인자와 `localStorage eduhub.employeeId` 코드를 제거하고 `// TODO(Step 14): 로그인 토큰 첨부` 한 줄. 화면이 401일 때 기존 오류 안내로 끝나는지만 테스트(공백 허용, 질문 3) | `npm test -w apps/course-mfe && npm run typecheck -w apps/course-mfe` |
+
+**순서**: T1 → T2 → T3 → T4 → T5 → (메인: 클라이언트 재생성) → T6
+
+**위험 영역**
+- T2 권한 규칙 **순서**: `GET /api/v1/courses/**` 공개가 ADMIN 규칙보다 먼저여야 하고, `anyRequest()`가 마지막. 사원 토큰으로 과정 등록이 되면 안 된다 (교재가 짚은 구멍) → T4 `AuthorizationRulesTest`로 고정
+- T2 비밀키: `application*.yml`에 값으로 쓰지 않는다(테스트 전용 값만 예외). 메인 `application-test.yml`(src/main)에 넣지 않는다 — 운영 jar에 실린다
+- T4 기존 테스트 대량 수정: WebMvc 테스트가 보안 설정을 불러오면서 깨질 수 있다. 서비스·동시성 테스트(서비스 직접 호출)는 바뀌지 않아야 한다 — 바뀌면 범위 이탈
+- 로그: 비밀번호·토큰을 남기지 않는다
+
+**테스트의 테스트 (개발자 직접)**: `SecurityConfig`의 `/api/v1/courses/**` ADMIN 줄을 지우면 "과정 등록은 관리자만" 테스트가 실패하는지
+
+**규모**: 백엔드 4계층 + 설정 + 프런트 1곳, 파일 25개 안팎 → 작업 단위로 implementer·reviewer, 마지막에 critical-reviewer
