@@ -16,6 +16,12 @@ spring:
         # 한 번에 너무 많이 조회하지 않도록 페이지 크기 상한을 둔다 (NFR-02)
         max-page-size: 50
 
+eduhub:
+  jwt:
+    # 값은 환경 변수로만 (32바이트 이상). 파일에 쓰지 않는다
+    secret: ${EDUHUB_JWT_SECRET}
+    ttl-minutes: 60
+
 springdoc:
   swagger-ui:
     path: /swagger-ui.html

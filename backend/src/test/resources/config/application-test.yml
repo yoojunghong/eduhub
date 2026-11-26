@@ -1,0 +1,4 @@
+# 테스트 전용 값. 운영 비밀이 아니다. src/main 의 application-test.yml 과 함께 로드된다.
+eduhub:
+  jwt:
+    secret: test-only-jwt-secret-not-for-production-0123456789

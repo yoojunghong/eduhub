@@ -19,6 +19,7 @@ import java.time.OffsetDateTime;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.test.context.ActiveProfiles;
@@ -26,6 +27,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(EnrollmentController.class)
+@AutoConfigureMockMvc(addFilters = false) // TODO(NFR-03 T4): jwt() 후처리로 교체
 @ActiveProfiles("test")
 class EnrollmentControllerTest {
 
