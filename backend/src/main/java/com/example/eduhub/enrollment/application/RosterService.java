@@ -3,6 +3,7 @@ package com.example.eduhub.enrollment.application;
 import com.example.eduhub.course.domain.CourseSession;
 import com.example.eduhub.course.domain.CourseSessionRepository;
 import com.example.eduhub.enrollment.api.CompletionResult;
+import com.example.eduhub.enrollment.api.RosterEntry;
 import com.example.eduhub.enrollment.api.RosterResponse;
 import com.example.eduhub.enrollment.domain.CompletionNotOpenException;
 import com.example.eduhub.enrollment.domain.CompletionOutcome;
@@ -43,22 +44,22 @@ public class RosterService {
   public RosterResponse roster(Long sessionId) {
     CourseSession session =
         sessionRepository
-            .findById(sessionId)
+            .findWithCourseById(sessionId)
             .orElseThrow(() -> new SessionNotFoundException(sessionId));
-    List<RosterRow> confirmed =
+    // 한 번 조회(id 오름차순)해서 메모리에서 나눈다. 대기 순번은 id 순이므로 순번 순과 같다
+    List<RosterRow> rows =
         enrollmentRepository.findRoster(
             sessionId,
             List.of(
                 EnrollmentStatus.CONFIRMED,
                 EnrollmentStatus.COMPLETED,
-                EnrollmentStatus.INCOMPLETE));
-    List<RosterRow> waiting =
-        new ArrayList<>(
-            enrollmentRepository.findRoster(sessionId, List.of(EnrollmentStatus.WAITING)));
-    // 순번 순 (id 순과 같지만 명시)
-    waiting.sort(
-        java.util.Comparator.comparing(
-            RosterRow::waitingNumber, java.util.Comparator.nullsLast(Long::compare)));
+                EnrollmentStatus.INCOMPLETE,
+                EnrollmentStatus.WAITING));
+    List<RosterEntry> confirmed = new ArrayList<>();
+    List<RosterEntry> waiting = new ArrayList<>();
+    for (RosterRow row : rows) {
+      (row.status() == EnrollmentStatus.WAITING ? waiting : confirmed).add(RosterEntry.from(row));
+    }
     return new RosterResponse(
         session.getId(),
         session.getCourse().getId(),

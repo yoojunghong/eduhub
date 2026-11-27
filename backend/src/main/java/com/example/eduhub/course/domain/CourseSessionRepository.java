@@ -18,6 +18,10 @@ public interface CourseSessionRepository extends JpaRepository<CourseSession, Lo
   @Query("select s from CourseSession s where s.id = :id")
   Optional<CourseSession> findByIdForUpdate(@Param("id") Long id);
 
+  /** 명단 조회용: 회차와 과정을 한 번에 읽는다 (락 없음). */
+  @Query("select s from CourseSession s join fetch s.course where s.id = :id")
+  Optional<CourseSession> findWithCourseById(@Param("id") Long id);
+
   /** 현재 트랜잭션에서만 락 대기 시간을 정한다 (SET LOCAL lock_timeout 과 같음). 예: "3s". */
   @Query(value = "select set_config('lock_timeout', :timeout, true)", nativeQuery = true)
   String setLockTimeout(@Param("timeout") String timeout);

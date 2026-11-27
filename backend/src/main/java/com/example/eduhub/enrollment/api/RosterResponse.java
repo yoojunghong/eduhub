@@ -1,6 +1,5 @@
 package com.example.eduhub.enrollment.api;
 
-import com.example.eduhub.enrollment.domain.RosterRow;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -14,5 +13,5 @@ public record RosterResponse(
     int capacity,
     String sessionStatus,
     boolean completionOpen,
-    List<RosterRow> confirmed,
-    List<RosterRow> waiting) {}
+    List<RosterEntry> confirmed,
+    List<RosterEntry> waiting) {}
