@@ -4,6 +4,7 @@ import com.example.eduhub.auth.application.InvalidCredentialsException;
 import com.example.eduhub.course.domain.CourseClosedException;
 import com.example.eduhub.course.domain.CourseNotFoundException;
 import com.example.eduhub.enrollment.domain.CancelPeriodEndedException;
+import com.example.eduhub.enrollment.domain.CompletionNotOpenException;
 import com.example.eduhub.enrollment.domain.DuplicateEnrollmentException;
 import com.example.eduhub.enrollment.domain.EnrollmentNotCancelableException;
 import com.example.eduhub.enrollment.domain.EnrollmentNotFoundException;
@@ -84,6 +85,12 @@ public class GlobalExceptionHandler {
   @ResponseStatus(HttpStatus.CONFLICT)
   public ErrorResponse handleCancelPeriodEnded(CancelPeriodEndedException e) {
     return new ErrorResponse("CANCEL_PERIOD_ENDED", e.getMessage());
+  }
+
+  @ExceptionHandler(CompletionNotOpenException.class)
+  @ResponseStatus(HttpStatus.CONFLICT)
+  public ErrorResponse handleCompletionNotOpen(CompletionNotOpenException e) {
+    return new ErrorResponse("COMPLETION_NOT_OPEN", e.getMessage());
   }
 
   @ExceptionHandler(WaitlistFullException.class)

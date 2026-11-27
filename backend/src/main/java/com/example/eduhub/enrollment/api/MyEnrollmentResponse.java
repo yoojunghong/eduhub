@@ -1,5 +1,6 @@
 package com.example.eduhub.enrollment.api;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 
@@ -11,7 +12,8 @@ public record MyEnrollmentResponse(
     String courseTitle,
     LocalDate startDate,
     String place,
-    String status,
+    @Schema(allowableValues = {"CONFIRMED", "WAITING", "CANCELED", "COMPLETED", "INCOMPLETE"})
+        String status,
     Integer waitingNumber,
     OffsetDateTime enrolledAt,
     boolean cancelable) {}
