@@ -20,6 +20,8 @@ import org.springframework.security.oauth2.server.resource.web.DefaultBearerToke
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 /**
  * 토큰 검증은 리소스 서버(oauth2ResourceServer().jwt())에 맡긴다. 직접 만든 필터로 파싱하지 않는다. 권한 규칙은 위에서부터 먼저 맞는 것이 적용되므로
@@ -94,10 +96,9 @@ public class SecurityConfig {
   @Bean
   public BearerTokenResolver bearerTokenResolver() {
     DefaultBearerTokenResolver delegate = new DefaultBearerTokenResolver();
-    return request ->
-        "POST".equals(request.getMethod()) && "/api/v1/auth/login".equals(request.getRequestURI())
-            ? null
-            : delegate.resolve(request);
+    RequestMatcher loginMatcher =
+        PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/v1/auth/login");
+    return request -> loginMatcher.matches(request) ? null : delegate.resolve(request);
   }
 
   @Bean

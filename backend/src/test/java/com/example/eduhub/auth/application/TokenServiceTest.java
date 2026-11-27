@@ -1,6 +1,7 @@
 package com.example.eduhub.auth.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.example.eduhub.auth.config.JwtConfig;
 import com.example.eduhub.employee.domain.Employee;
@@ -44,5 +45,11 @@ class TokenServiceTest {
   void ttlSeconds는_설정한_분을_초로_돌려준다() {
     TokenService service = new TokenService(jwtConfig.jwtEncoder(), clock, 15);
     assertThat(service.ttlSeconds()).isEqualTo(900);
+  }
+
+  @Test
+  void ttl이_1분_미만이면_시작_시_예외() {
+    assertThatThrownBy(() -> new TokenService(jwtConfig.jwtEncoder(), clock, 0))
+        .isInstanceOf(IllegalStateException.class);
   }
 }

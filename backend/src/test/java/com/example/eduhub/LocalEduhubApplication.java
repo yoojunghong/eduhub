@@ -1,5 +1,6 @@
 package com.example.eduhub;
 
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.SpringApplication;
 
 /**
@@ -15,6 +16,8 @@ public class LocalEduhubApplication {
     if (isBlank(System.getenv("EDUHUB_JWT_SECRET"))
         && isBlank(System.getProperty("eduhub.jwt.secret"))) {
       System.setProperty("eduhub.jwt.secret", LOCAL_JWT_SECRET);
+      LoggerFactory.getLogger(LocalEduhubApplication.class)
+          .warn("로컬 전용 공개 비밀키 사용 중 — 네트워크에 노출하지 말 것");
     }
     SpringApplication.from(EduhubApplication::main)
         .with(LocalDevConfiguration.class)

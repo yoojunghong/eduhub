@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.example.eduhub.TestAuth;
 import com.example.eduhub.auth.config.JwtConfig;
 import com.example.eduhub.employee.domain.Employee;
 import com.example.eduhub.employee.domain.EmployeeRepository;
@@ -234,6 +235,16 @@ class AuthApiTest {
     String expired = token(new JwtConfig(secret).jwtEncoder(), Instant.now().minusSeconds(180));
     mockMvc
         .perform(get("/api/v1/me").header("Authorization", "Bearer " + expired))
+        .andExpect(status().isUnauthorized())
+        .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
+  }
+
+  @Test
+  @DisplayName("sub가 숫자가 아닌 토큰으로 /me를 부르면 500이 아니라 401이다")
+  void sub가_숫자가_아니면_401() throws Exception {
+    mockMvc
+        .perform(
+            get("/api/v1/me").with(TestAuth.as(0, "EMPLOYEE").jwt(j -> j.subject("not-a-number"))))
         .andExpect(status().isUnauthorized())
         .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
   }

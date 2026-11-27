@@ -6,7 +6,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class LoginService {
@@ -30,7 +29,7 @@ public class LoginService {
     this.dummyHash = passwordEncoder.encode("dummy-password-for-timing");
   }
 
-  @Transactional(readOnly = true)
+  /** 트랜잭션을 걸지 않는다: BCrypt 비교 동안 DB 연결을 붙잡지 않게 조회만 리포지토리 기본 트랜잭션에 맡긴다. */
   public LoginResult login(String employeeNo, String password) {
     Employee employee = employeeRepository.findByEmployeeNo(employeeNo).orElse(null);
     String hash = employee != null ? employee.getPasswordHash() : dummyHash;
@@ -51,6 +50,6 @@ public class LoginService {
 
   /** 로그 위조 방지: 개행·제어문자를 제거한다. */
   private static String sanitize(String value) {
-    return value == null ? null : value.replaceAll("\\p{Cntrl}", "");
+    return value == null ? null : value.replaceAll("[\\p{Cntrl}\\u2028\\u2029]", "");
   }
 }

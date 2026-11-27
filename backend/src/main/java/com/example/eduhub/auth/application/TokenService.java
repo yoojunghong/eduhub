@@ -22,6 +22,9 @@ public class TokenService {
 
   public TokenService(
       JwtEncoder encoder, Clock clock, @Value("${eduhub.jwt.ttl-minutes:60}") long ttlMinutes) {
+    if (ttlMinutes < 1) {
+      throw new IllegalStateException("eduhub.jwt.ttl-minutes는 1 이상이어야 합니다: " + ttlMinutes);
+    }
     this.encoder = encoder;
     this.clock = clock;
     this.ttl = Duration.ofMinutes(ttlMinutes);

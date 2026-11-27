@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.security.SecurityRequirements;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.net.URI;
@@ -44,6 +45,7 @@ public class CourseController {
       description =
           "과정을 제목·분류로 검색하고 페이지 단위로 조회한다 (page는 0부터, size 최대 50)."
               + " status=OPEN(기본)은 운영 중만, CLOSED는 종료만, ALL은 전체 (관리 화면)")
+  @SecurityRequirements
   @GetMapping
   public PageResponse<CourseSummaryResponse> getCourses(
       @RequestParam(required = false) String keyword,
@@ -59,6 +61,7 @@ public class CourseController {
       responseCode = "404",
       description = "과정이 없음",
       content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+  @SecurityRequirements
   @GetMapping("/{id}")
   public CourseDetailResponse getCourse(@PathVariable Long id) {
     return courseQueryService.get(id);

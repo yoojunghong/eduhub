@@ -1,7 +1,10 @@
 package com.example.eduhub.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.head;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -246,5 +249,29 @@ class AuthorizationRulesTest {
         jdbcTemplate.queryForObject(
             "SELECT employee_id FROM enrollment WHERE session_id = ?", Long.class, sessionId);
     assertThat(saved).isEqualTo(emp.getId());
+  }
+
+  @Test
+  @DisplayName("우회 시도: 사원 토큰의 끝 슬래시 POST, PATCH, DELETE는 403, 비로그인 HEAD는 401")
+  void bypassAttempts() throws Exception {
+    mockMvc
+        .perform(
+            post("/api/v1/courses/")
+                .with(TestAuth.employee(1))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(COURSE_JSON))
+        .andExpect(status().isForbidden());
+    mockMvc
+        .perform(
+            patch("/api/v1/courses/" + courseId)
+                .with(TestAuth.employee(1))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(COURSE_JSON))
+        .andExpect(status().isForbidden());
+    mockMvc
+        .perform(delete("/api/v1/courses/" + courseId).with(TestAuth.employee(1)))
+        .andExpect(status().isForbidden());
+    // 현재 동작 고정: HEAD는 공개 GET 규칙에 걸리지 않아 인증이 필요하다
+    mockMvc.perform(head("/api/v1/courses")).andExpect(status().isUnauthorized());
   }
 }
