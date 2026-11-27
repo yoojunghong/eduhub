@@ -7,6 +7,7 @@ import { CourseAdminDetailPage } from './pages/admin/CourseAdminDetailPage';
 import { LoginPage } from './auth/LoginPage';
 import { RequireAuth } from './auth/RequireAuth';
 import { MyEnrollmentsPage } from './enrollment/MyEnrollmentsPage';
+import { RosterPage } from './enrollment/RosterPage';
 
 /** 주소의 :id 를 양의 정수로 바꾼다. 아니면 undefined. */
 function useIdParam() {
@@ -25,6 +26,12 @@ function CourseAdminDetailRoute() {
   const id = useIdParam();
   if (id === undefined) return <CourseNotFound />;
   return <CourseAdminDetailPage key={id} id={id} />;
+}
+
+function RosterRoute() {
+  const id = useIdParam();
+  if (id === undefined) return <CourseNotFound />;
+  return <RosterPage key={id} sessionId={id} />;
 }
 
 export function App() {
@@ -64,6 +71,14 @@ export function App() {
         element={
           <RequireAuth admin>
             <CourseAdminDetailRoute />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/admin/sessions/:id/roster"
+        element={
+          <RequireAuth admin>
+            <RosterRoute />
           </RequireAuth>
         }
       />

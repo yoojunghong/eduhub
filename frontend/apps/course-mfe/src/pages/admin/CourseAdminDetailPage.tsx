@@ -101,6 +101,7 @@ export function CourseAdminDetailPage({ id }: { id: number }) {
               <TableCell align="right">정원</TableCell>
               <TableCell align="right">남은 자리</TableCell>
               <TableCell>상태</TableCell>
+              <TableCell align="right">명단</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
@@ -112,11 +113,16 @@ export function CourseAdminDetailPage({ id }: { id: number }) {
                   <TableCell align="right">{s.capacity}</TableCell>
                   <TableCell align="right">{s.remainingSeats}</TableCell>
                   <TableCell>{s.status === 'CLOSED' ? '종료' : '모집'}</TableCell>
+                  <TableCell align="right">
+                    <Button size="small" component={RouterLink} to={`/admin/sessions/${s.id}/roster`}>
+                      명단
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={5}>등록된 회차가 없습니다.</TableCell>
+                <TableCell colSpan={6}>등록된 회차가 없습니다.</TableCell>
               </TableRow>
             )}
           </TableBody>

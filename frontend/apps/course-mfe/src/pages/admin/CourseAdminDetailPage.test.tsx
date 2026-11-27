@@ -48,6 +48,13 @@ test('과정 상세와 회차를 보여 준다', () => {
   expect(within(screen.getByRole('table', { name: '회차 목록' })).getByText('본사 3층')).toBeInTheDocument();
 });
 
+test('회차 행의 명단 버튼은 명단 화면으로 연결된다', () => {
+  admin.data = course();
+  renderPage();
+
+  expect(screen.getByRole('link', { name: '명단' })).toHaveAttribute('href', '/admin/sessions/10/roster');
+});
+
 test('종료된 과정은 수정·회차 추가·종료 버튼을 막는다', () => {
   admin.data = course('CLOSED');
   renderPage();
