@@ -86,6 +86,25 @@ public class Enrollment {
     this.status = EnrollmentStatus.CONFIRMED;
   }
 
+  /** 확정 신청을 수료로 바꾼다. 확정이 아니면 프로그래밍 오류(서비스가 먼저 상태로 사유를 가른다). */
+  public void complete() {
+    requireConfirmed("수료");
+    this.status = EnrollmentStatus.COMPLETED;
+  }
+
+  /** 확정 신청을 미수료로 바꾼다. 확정이 아니면 프로그래밍 오류. */
+  public void markIncomplete() {
+    requireConfirmed("미수료");
+    this.status = EnrollmentStatus.INCOMPLETE;
+  }
+
+  private void requireConfirmed(String action) {
+    if (status != EnrollmentStatus.CONFIRMED) {
+      throw new IllegalStateException(
+          "확정 상태만 " + action + " 처리할 수 있습니다. id=" + id + ", status=" + status);
+    }
+  }
+
   public Long getId() {
     return id;
   }

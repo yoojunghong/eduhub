@@ -4,5 +4,6 @@ public enum EnrollmentStatus {
   CONFIRMED,
   WAITING,
   CANCELED,
-  COMPLETED
+  COMPLETED,
+  INCOMPLETE
 }

@@ -96,6 +96,42 @@ class EnrollmentTest {
     assertThatThrownBy(e::promote).isInstanceOf(IllegalStateException.class);
   }
 
+  @Test
+  void 확정_신청을_수료_처리하면_COMPLETED() {
+    Enrollment e = Enrollment.confirm(session(10), 1L, NOW);
+
+    e.complete();
+
+    assertThat(e.getStatus()).isEqualTo(EnrollmentStatus.COMPLETED);
+  }
+
+  @Test
+  void 확정_신청을_미수료_처리하면_INCOMPLETE() {
+    Enrollment e = Enrollment.confirm(session(10), 1L, NOW);
+
+    e.markIncomplete();
+
+    assertThat(e.getStatus()).isEqualTo(EnrollmentStatus.INCOMPLETE);
+  }
+
+  @Test
+  void 확정이_아니면_수료_미수료_처리할_수_없다() {
+    Enrollment waiting = Enrollment.waiting(session(10), 1L, NOW);
+    Enrollment canceled = Enrollment.confirm(session(10), 2L, NOW);
+    canceled.cancel();
+    Enrollment done = Enrollment.confirm(session(10), 3L, NOW);
+    done.complete();
+
+    assertThatThrownBy(waiting::complete).isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(waiting::markIncomplete).isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(canceled::complete).isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(done::complete).isInstanceOf(IllegalStateException.class);
+    assertThatThrownBy(done::markIncomplete).isInstanceOf(IllegalStateException.class);
+    assertThat(waiting.getStatus()).isEqualTo(EnrollmentStatus.WAITING);
+    assertThat(canceled.getStatus()).isEqualTo(EnrollmentStatus.CANCELED);
+    assertThat(done.getStatus()).isEqualTo(EnrollmentStatus.COMPLETED);
+  }
+
   @ParameterizedTest
   @CsvSource({"1,0", "2,1", "3,1", "15,7", "20,10"})
   void 대기_상한은_정원의_절반_내림(int capacity, int expected) {

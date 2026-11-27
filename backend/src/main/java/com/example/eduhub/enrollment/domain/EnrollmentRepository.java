@@ -1,5 +1,6 @@
 package com.example.eduhub.enrollment.domain;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -62,6 +63,46 @@ public interface EnrollmentRepository extends JpaRepository<Enrollment, Long> {
   default Optional<Enrollment> findFirstWaiting(Long sessionId) {
     return findFirstBySessionIdAndStatusOrderByIdAsc(sessionId, EnrollmentStatus.WAITING);
   }
+
+  /** 내 신청 내역 (FR-07): 회차·과정 join + 대기 순번 서브쿼리, SQL 1번. status가 null이면 전체, 최근 신청순. */
+  @Query(
+      """
+      select new com.example.eduhub.enrollment.domain.MyEnrollmentRow(
+        e.id, s.id, c.id, c.title, s.startDate, s.place, e.status,
+        case when e.status = com.example.eduhub.enrollment.domain.EnrollmentStatus.WAITING
+          then (select count(w) from Enrollment w
+                where w.session.id = e.session.id and w.id <= e.id
+                  and w.status = com.example.eduhub.enrollment.domain.EnrollmentStatus.WAITING)
+          else null end,
+        e.enrolledAt)
+      from Enrollment e join e.session s join s.course c
+      where e.employeeId = :employeeId
+        and (:status is null or e.status = :status)
+      order by e.id desc
+      """)
+  List<MyEnrollmentRow> findMyEnrollments(
+      @Param("employeeId") Long employeeId, @Param("status") EnrollmentStatus status);
+
+  /** 회차 명단 (FR-08): 사원 행이 없어도 나오도록 left join. 신청 순(id 오름차순). */
+  @Query(
+      """
+      select new com.example.eduhub.enrollment.domain.RosterRow(
+        e.id, e.employeeId, m.employeeNo, m.name, m.department, e.status,
+        case when e.status = com.example.eduhub.enrollment.domain.EnrollmentStatus.WAITING
+          then (select count(w) from Enrollment w
+                where w.session.id = e.session.id and w.id <= e.id
+                  and w.status = com.example.eduhub.enrollment.domain.EnrollmentStatus.WAITING)
+          else null end)
+      from Enrollment e
+        left join com.example.eduhub.employee.domain.Employee m on m.id = e.employeeId
+      where e.session.id = :sessionId and e.status in :statuses
+      order by e.id asc
+      """)
+  List<RosterRow> findRoster(
+      @Param("sessionId") Long sessionId, @Param("statuses") List<EnrollmentStatus> statuses);
+
+  /** 수료 처리용: 회차의 해당 사원 신청을 한 번에 조회한다 (회차 락 안에서 사용). */
+  List<Enrollment> findBySessionIdAndEmployeeIdIn(Long sessionId, Collection<Long> employeeIds);
 
   /** 락 전 1단계 조회용 스칼라 쿼리: 엔티티를 영속성 컨텍스트에 올리지 않는다 (본인 신청만). */
   @Query("select e.session.id from Enrollment e where e.id = :id and e.employeeId = :employeeId")
