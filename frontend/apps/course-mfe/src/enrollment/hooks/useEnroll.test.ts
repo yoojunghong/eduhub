@@ -1,8 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
-import { enrollmentApi } from '../api/clients';
+import { enrollmentApi } from '../../api/clients';
 import { EnrollInProgressError, useEnroll } from './useEnroll';
 
-jest.mock('../api/clients', () => ({ enrollmentApi: { enroll: jest.fn() } }));
+jest.mock('../../api/clients', () => ({ enrollmentApi: { enroll: jest.fn() } }));
 const enroll = enrollmentApi.enroll as jest.Mock;
 
 beforeEach(() => {

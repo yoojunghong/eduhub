@@ -14,7 +14,8 @@ import {
 } from '@mui/material';
 import { useState } from 'react';
 import { useCourse } from '../hooks/useCourse';
-import { EnrollInProgressError, useEnroll } from '../hooks/useEnroll';
+import { EnrollInProgressError, useEnroll } from '../enrollment/hooks/useEnroll';
+import { EnrollButton, enrollMode } from '../enrollment/EnrollButton';
 import { apiErrorMessage } from '../api/apiError';
 
 function BackToList() {
@@ -33,15 +34,6 @@ export function CourseNotFound() {
       <BackToList />
     </Stack>
   );
-}
-
-type EnrollMode = 'ENROLL' | 'WAITLIST' | 'FULL';
-
-/** 회차의 신청 방식. 버튼과 상태 칩이 함께 쓴다. 빈 자리가 있어도 대기자가 있으면 대기열이 먼저다 (설계 2-3). */
-function enrollMode(s: { remainingSeats?: number; waitingCount?: number; waitlistLimit?: number }): EnrollMode {
-  const waitingCount = s.waitingCount ?? 0;
-  if (waitingCount === 0 && (s.remainingSeats ?? 0) > 0) return 'ENROLL';
-  return waitingCount < (s.waitlistLimit ?? 0) ? 'WAITLIST' : 'FULL';
 }
 
 /** 과정 상세와 회차 목록(FR-02). */
@@ -124,8 +116,6 @@ export function CourseDetailPage({ id }: { id: number }) {
             {sessions.map((s) => {
               const closed = s.status === 'CLOSED';
               const mode = enrollMode(s);
-              const direct = mode === 'ENROLL';
-              const waitlistFull = mode === 'FULL';
               return (
                 <TableRow key={s.id}>
                   <TableCell>{s.startDate}</TableCell>
@@ -144,14 +134,12 @@ export function CourseDetailPage({ id }: { id: number }) {
                     )}
                   </TableCell>
                   <TableCell align="right">
-                    <Button
-                      size="small"
-                      variant={direct ? 'contained' : 'outlined'}
-                      disabled={closed || waitlistFull || data.status === 'CLOSED' || enrollingSessionId !== undefined}
-                      onClick={() => apply(s.id!)}
-                    >
-                      {direct ? '신청' : waitlistFull ? '마감' : '대기 신청'}
-                    </Button>
+                    <EnrollButton
+                      session={s}
+                      courseClosed={data.status === 'CLOSED'}
+                      busy={enrollingSessionId !== undefined}
+                      onEnroll={apply}
+                    />
                   </TableCell>
                 </TableRow>
               );

@@ -2,12 +2,15 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { MemoryRouter } from 'react-router-dom';
 import { routerFuture } from '../routerFuture';
 import { useCourse } from '../hooks/useCourse';
-import { EnrollInProgressError, useEnroll } from '../hooks/useEnroll';
+import { EnrollInProgressError, useEnroll } from '../enrollment/hooks/useEnroll';
+import { useAuth } from '../auth/AuthContext';
 import { CourseDetailPage } from './CourseDetailPage';
 
 // 화면 테스트는 훅을 mock한다. API 호출 방식은 useCourse.test.ts, useEnroll.test.ts가 따로 검증한다
 jest.mock('../hooks/useCourse');
-jest.mock('../hooks/useEnroll');
+jest.mock('../enrollment/hooks/useEnroll');
+jest.mock('../auth/AuthContext');
+const mockUseAuth = useAuth as jest.Mock;
 const mockUseCourse = useCourse as jest.Mock;
 const mockUseEnroll = useEnroll as jest.Mock;
 const enroll = jest.fn();
@@ -17,6 +20,7 @@ beforeEach(() => {
   enroll.mockReset();
   reload.mockReset();
   mockUseEnroll.mockReturnValue({ enroll, enrollingSessionId: undefined });
+  mockUseAuth.mockReturnValue({ user: { id: 1, role: 'EMPLOYEE' } });
 });
 
 const openSession = (remainingSeats: number) =>
@@ -121,6 +125,15 @@ test('종료된 회차는 신청 버튼을 막는다', () => {
   renderPage();
 
   expect(screen.getByRole('button', { name: '신청' })).toBeDisabled();
+});
+
+test('비로그인이면 신청 버튼 대신 로그인 후 신청 링크를 보여 준다', () => {
+  mockUseAuth.mockReturnValue({ user: null });
+  mockUseCourse.mockReturnValue({ ...course([openSession(5)]), reload });
+  renderPage();
+
+  expect(screen.getByRole('link', { name: '로그인 후 신청' })).toHaveAttribute('href', '/login');
+  expect(screen.queryByRole('button', { name: '신청' })).not.toBeInTheDocument();
 });
 
 const renderPage = () =>
