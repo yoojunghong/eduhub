@@ -6,16 +6,20 @@ import com.example.eduhub.course.domain.CourseSession;
 import com.example.eduhub.employee.domain.Employee;
 import com.example.eduhub.employee.domain.EmployeeRepository;
 import com.example.eduhub.employee.domain.EmployeeRole;
+import com.example.eduhub.enrollment.domain.Enrollment;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
 import jakarta.persistence.EntityManager;
 import java.io.IOException;
+import java.time.Clock;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import javax.sql.DataSource;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -34,6 +38,7 @@ class LocalDevConfiguration {
   }
 
   @Bean
+  @Order(0)
   ApplicationRunner devAccounts(EmployeeRepository employeeRepository, PasswordEncoder encoder) {
     return args -> {
       String[][] accounts = {
@@ -51,7 +56,36 @@ class LocalDevConfiguration {
     };
   }
 
+  /** 수료 처리 확인용: 시작일이 오늘인 회차와 확정 신청. 계정 시드(devAccounts)보다 뒤에 실행된다. */
   @Bean
+  @Order(10)
+  ApplicationRunner todaySession(
+      CourseRepository courseRepository,
+      EmployeeRepository employeeRepository,
+      EntityManager em,
+      TransactionTemplate tx,
+      Clock clock) {
+    return args ->
+        tx.executeWithoutResult(status -> {
+          if (courseRepository.findAll().stream().anyMatch(c -> c.getTitle().equals("Git 협업 기초"))) {
+            return;
+          }
+          Course course = new Course("Git 협업 기초", "TOOL", "브랜치, PR, 충돌 해결");
+          CourseSession session = course.addSession(LocalDate.now(clock), "본사 2층 교육장", 10);
+          courseRepository.save(course);
+          em.persist(session);
+          // 개발 데이터: D-01상 시작일 당일엔 신청할 수 없어 서비스를 거치지 않고 직접 저장한다
+          for (String no : List.of("E1001", "E1002")) {
+            employeeRepository
+                .findByEmployeeNo(no)
+                .ifPresent(e ->
+                    em.persist(Enrollment.confirm(session, e.getId(), OffsetDateTime.now(clock))));
+          }
+        });
+  }
+
+  @Bean
+  @Order(0)
   ApplicationRunner sampleCourses(
       CourseRepository courseRepository, EntityManager em, TransactionTemplate tx) {
     return args ->
