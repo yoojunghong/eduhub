@@ -1,8 +1,8 @@
 import { act, renderHook } from '@testing-library/react';
-import { courseApi } from '../api/courseApi';
+import { courseApi } from '../api/clients';
 import { useCreateCourse } from './useCreateCourse';
 
-jest.mock('../api/courseApi', () => ({ courseApi: { createCourse: jest.fn() } }));
+jest.mock('../api/clients', () => ({ courseApi: { createCourse: jest.fn() } }));
 const createCourse = courseApi.createCourse as jest.Mock;
 
 beforeEach(() => createCourse.mockReset());

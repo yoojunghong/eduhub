@@ -1,8 +1,8 @@
 import { renderHook, waitFor } from '@testing-library/react';
-import { courseApi } from '../api/courseApi';
+import { courseApi } from '../api/clients';
 import { useCourses } from './useCourses';
 
-jest.mock('../api/courseApi', () => ({ courseApi: { getCourses: jest.fn() } }));
+jest.mock('../api/clients', () => ({ courseApi: { getCourses: jest.fn() } }));
 const getCourses = courseApi.getCourses as jest.Mock;
 
 const pageOf = (titles: string[]) => ({

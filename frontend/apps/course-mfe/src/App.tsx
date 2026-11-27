@@ -4,6 +4,8 @@ import { CourseListPage } from './pages/CourseListPage';
 import { CourseDetailPage, CourseNotFound } from './pages/CourseDetailPage';
 import { CourseAdminPage } from './pages/admin/CourseAdminPage';
 import { CourseAdminDetailPage } from './pages/admin/CourseAdminDetailPage';
+import { LoginPage } from './auth/LoginPage';
+import { RequireAuth } from './auth/RequireAuth';
 
 /** 주소의 :id 를 양의 정수로 바꾼다. 아니면 undefined. */
 function useIdParam() {
@@ -39,8 +41,23 @@ export function App() {
         }
       />
       <Route path="/courses/:id" element={<CourseDetailRoute />} />
-      <Route path="/admin" element={<CourseAdminPage />} />
-      <Route path="/admin/courses/:id" element={<CourseAdminDetailRoute />} />
+      <Route path="/login" element={<LoginPage />} />
+      <Route
+        path="/admin"
+        element={
+          <RequireAuth admin>
+            <CourseAdminPage />
+          </RequireAuth>
+        }
+      />
+      <Route
+        path="/admin/courses/:id"
+        element={
+          <RequireAuth admin>
+            <CourseAdminDetailRoute />
+          </RequireAuth>
+        }
+      />
       <Route path="*" element={<CourseNotFound />} />
     </Routes>
   );

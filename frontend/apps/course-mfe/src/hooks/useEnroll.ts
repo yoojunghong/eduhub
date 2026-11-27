@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
 import type { EnrollmentResponse } from '@eduhub/api-client';
-import { enrollmentApi } from '../api/courseApi';
+import { enrollmentApi } from '../api/clients';
 
 /** 이미 신청을 처리하는 중이라 서버에 보내지 않고 거부했음을 나타낸다. 화면은 이 오류를 알리지 않고 무시한다. */
 export class EnrollInProgressError extends Error {
@@ -22,7 +22,6 @@ export function useEnroll() {
     inFlight.current = true;
     setEnrollingSessionId(sessionId);
     try {
-      // TODO(Step 14): 로그인 토큰을 Authorization 헤더로 첨부
       const response = await enrollmentApi.enroll({ sessionId });
       return response.data;
     } finally {

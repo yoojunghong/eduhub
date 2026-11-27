@@ -3,15 +3,19 @@ import { MemoryRouter } from 'react-router-dom';
 import { useCourse } from './hooks/useCourse';
 import { App } from './App';
 import { routerFuture } from './routerFuture';
+import { AuthProvider } from './auth/AuthContext';
 
 jest.mock('./hooks/useCourse');
 jest.mock('./hooks/useCourses');
+jest.mock('./api/clients', () => ({ authApi: { me: jest.fn(), login: jest.fn() } }));
 const mockUseCourse = useCourse as jest.Mock;
 
 const renderAt = (path: string) =>
   render(
     <MemoryRouter initialEntries={[path]} future={routerFuture}>
-      <App />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </MemoryRouter>,
   );
 

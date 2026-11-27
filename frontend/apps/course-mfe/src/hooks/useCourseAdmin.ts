@@ -4,7 +4,7 @@ import type {
   CourseUpdateRequest,
   SessionCreateRequest,
 } from '@eduhub/api-client';
-import { courseApi } from '../api/courseApi';
+import { courseApi } from '../api/clients';
 
 /**
  * 관리 화면(FR-03)에서 과정 하나를 불러오고 수정·회차 추가·종료하는 훅.

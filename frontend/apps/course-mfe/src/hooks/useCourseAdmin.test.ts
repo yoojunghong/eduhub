@@ -1,8 +1,8 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
-import { courseApi } from '../api/courseApi';
+import { courseApi } from '../api/clients';
 import { useCourseAdmin } from './useCourseAdmin';
 
-jest.mock('../api/courseApi', () => ({
+jest.mock('../api/clients', () => ({
   courseApi: { getCourse: jest.fn(), updateCourse: jest.fn(), addSession: jest.fn(), closeCourse: jest.fn() },
 }));
 const api = courseApi as unknown as Record<'getCourse' | 'updateCourse' | 'addSession' | 'closeCourse', jest.Mock>;

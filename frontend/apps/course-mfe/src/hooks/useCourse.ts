@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { CourseDetailResponse } from '@eduhub/api-client';
-import { courseApi } from '../api/courseApi';
+import { courseApi } from '../api/clients';
 import { isNotFound } from '../api/errors';
 
 /**
