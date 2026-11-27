@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MyEnrollmentResponse, MyEnrollmentsStatusEnum } from '@eduhub/api-client';
 import { enrollmentApi } from '../../api/clients';
 
@@ -9,7 +9,14 @@ export function useMyEnrollments(status?: MyEnrollmentsStatusEnum) {
   const [error, setError] = useState<unknown>();
   const [refreshKey, setRefreshKey] = useState(0);
 
+  const lastStatus = useRef(status);
+
   useEffect(() => {
+    // 필터가 바뀌면 이전 필터의 행을 비운다. reload는 기존 행을 유지한다
+    if (lastStatus.current !== status) {
+      lastStatus.current = status;
+      setData(undefined);
+    }
     let ignore = false; // 필터를 빠르게 바꿀 때 늦게 도착한 이전 응답은 버린다
     setLoading(true);
     setError(undefined);

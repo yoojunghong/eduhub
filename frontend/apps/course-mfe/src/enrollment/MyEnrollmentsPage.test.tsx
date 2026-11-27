@@ -47,7 +47,9 @@ test('목록을 표로 보여 준다: 링크, 시작일, 장소, 상태 칩, 신
   expect(within(row).getByText('2026-11-27 10:05')).toBeInTheDocument();
   expect(screen.getByText('대기 2번')).toBeInTheDocument();
   expect(within(screen.getByRole('table')).getByText('수료')).toBeInTheDocument();
-  expect(within(screen.getByRole('table')).getAllByRole('button', { name: '취소' })).toHaveLength(2); // cancelable만
+  expect(within(screen.getByRole('table')).getAllByRole('button')).toHaveLength(2); // cancelable만 (링크 제외)
+  expect(screen.getByRole('button', { name: 'JPA 실전 신청 취소' })).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'React 기초 신청 취소' })).toBeInTheDocument();
   expect(myEnrollments).toHaveBeenLastCalledWith({ status: undefined });
 });
 
@@ -71,10 +73,10 @@ test('취소: 확인 대화상자 후 취소하고 안내한 뒤 목록을 다�
   await screen.findByText('대기 2번');
   const calls = myEnrollments.mock.calls.length;
 
-  fireEvent.click(within(screen.getByRole('table')).getAllByRole('button', { name: '취소' })[0]);
-  expect(await screen.findByText('JPA 실전을(를) 취소할까요?')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'JPA 실전 신청 취소' }));
+  expect(await screen.findByText("'JPA 실전' 신청을 취소할까요?")).toBeInTheDocument();
   expect(cancel).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button', { name: '신청 취소' }));
+  fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '신청 취소' }));
 
   expect(await screen.findByText('신청을 취소했습니다.')).toBeInTheDocument();
   expect(cancel).toHaveBeenCalledWith({ enrollmentId: 31 });
@@ -85,7 +87,7 @@ test('대화상자에서 닫으면 취소하지 않는다', async () => {
   renderPage();
   await screen.findByText('대기 2번');
 
-  fireEvent.click(within(screen.getByRole('table')).getAllByRole('button', { name: '취소' })[0]);
+  fireEvent.click(screen.getByRole('button', { name: 'JPA 실전 신청 취소' }));
   fireEvent.click(await screen.findByRole('button', { name: '닫기' }));
 
   expect(cancel).not.toHaveBeenCalled();
@@ -101,8 +103,8 @@ test('취소가 409이면 서버 메시지를 안내하고 다시 조회한다',
   await screen.findByText('대기 2번');
   const calls = myEnrollments.mock.calls.length;
 
-  fireEvent.click(within(screen.getByRole('table')).getAllByRole('button', { name: '취소' })[0]);
-  fireEvent.click(await screen.findByRole('button', { name: '신청 취소' }));
+  fireEvent.click(screen.getByRole('button', { name: 'JPA 실전 신청 취소' }));
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '신청 취소' }));
 
   expect(await screen.findByRole('alert')).toHaveTextContent('시작일 전날까지만 취소할 수 있습니다.');
   await waitFor(() => expect(myEnrollments.mock.calls.length).toBeGreaterThan(calls));
@@ -121,4 +123,77 @@ test('불러오기에 실패하면 오류를 보여 준다', async () => {
   renderPage();
 
   expect(await screen.findByRole('alert')).toHaveTextContent('신청 내역을 불러오지 못했습니다.');
+});
+
+test('대화상자는 제목으로 이름이 붙는다', async () => {
+  renderPage();
+  await screen.findByText('대기 2번');
+
+  fireEvent.click(screen.getByRole('button', { name: 'JPA 실전 신청 취소' }));
+
+  expect(await screen.findByRole('dialog', { name: '신청 취소' })).toBeInTheDocument();
+});
+
+test('필터를 바꾸면 이전 필터의 행을 비우고 로딩을 보여 준다', async () => {
+  renderPage();
+  await screen.findByText('대기 2번');
+  myEnrollments.mockReturnValue(new Promise(() => {})); // 응답이 오지 않는다
+
+  fireEvent.click(screen.getByRole('button', { name: '대기' }));
+
+  expect(await screen.findByRole('progressbar', { name: '불러오는 중' })).toBeInTheDocument();
+  expect(screen.queryByText('JPA 실전')).not.toBeInTheDocument();
+});
+
+test('대기 필터에서 취소하면 같은 필터(WAITING)로 다시 조회한다', async () => {
+  cancel.mockResolvedValue({ data: {} });
+  myEnrollments.mockResolvedValue({ data: [waiting] });
+  renderPage();
+  fireEvent.click(screen.getByRole('button', { name: '대기' }));
+  await screen.findByText('대기 2번');
+  const calls = myEnrollments.mock.calls.length;
+
+  fireEvent.click(screen.getByRole('button', { name: 'React 기초 신청 취소' }));
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '신청 취소' }));
+
+  await waitFor(() => expect(myEnrollments.mock.calls.length).toBeGreaterThan(calls));
+  expect(myEnrollments).toHaveBeenLastCalledWith({ status: 'WAITING' });
+});
+
+test('취소 중에는 다른 행의 취소 버튼도 비활성이다', async () => {
+  cancel.mockReturnValue(new Promise(() => {})); // 끝나지 않는다
+  renderPage();
+  await screen.findByText('대기 2번');
+
+  fireEvent.click(screen.getByRole('button', { name: 'JPA 실전 신청 취소' }));
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '신청 취소' }));
+
+  await waitFor(() => expect(screen.getByRole('button', { name: 'React 기초 신청 취소' })).toBeDisabled());
+});
+
+test('cancelable이 false인 확정·대기 행에는 취소 버튼이 없다', async () => {
+  myEnrollments.mockResolvedValue({
+    data: [
+      { ...confirmed, cancelable: false },
+      { ...waiting, cancelable: false },
+    ],
+  });
+  renderPage();
+
+  await screen.findByText('대기 2번');
+  expect(within(screen.getByRole('table')).queryByRole('button')).not.toBeInTheDocument();
+});
+
+test('확인 버튼을 두 번 눌러도 취소는 한 번만 보낸다', async () => {
+  cancel.mockResolvedValue({ data: {} });
+  renderPage();
+  await screen.findByText('대기 2번');
+
+  fireEvent.click(screen.getByRole('button', { name: 'JPA 실전 신청 취소' }));
+  const confirm = within(await screen.findByRole('dialog')).getByRole('button', { name: '신청 취소' });
+  fireEvent.click(confirm);
+  fireEvent.click(confirm);
+
+  await screen.findByText('신청을 취소했습니다.');
+  expect(cancel).toHaveBeenCalledTimes(1);
 });
