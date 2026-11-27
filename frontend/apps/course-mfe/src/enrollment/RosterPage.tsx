@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import {
   Alert,
@@ -26,6 +26,7 @@ const FAILURE_REASONS: Record<string, string> = {
 };
 
 const UNKNOWN = '알 수 없음';
+const MAX_BATCH = 100; // 서버 제한 1~100
 
 function StatusChip({ status }: { status?: string }) {
   switch (status) {
@@ -44,11 +45,12 @@ function StatusChip({ status }: { status?: string }) {
 export function RosterPage({ sessionId }: { sessionId: number }) {
   const { data, loading, error, reload } = useRoster(sessionId);
   const { complete, processing } = useCompletion(sessionId);
+  const busyRef = useRef(false);
   const [selected, setSelected] = useState<number[]>([]);
   const [result, setResult] = useState<{ severity: 'success' | 'warning' | 'error'; lines: string[] }>();
 
   if (loading && !data) return <CircularProgress aria-label="불러오는 중" />;
-  if (error || !data) {
+  if (!data) {
     return <Alert severity="error">{apiServerMessage(error, '명단을 불러오지 못했습니다.')}</Alert>;
   }
 
@@ -58,8 +60,12 @@ export function RosterPage({ sessionId }: { sessionId: number }) {
   const selectableIds = confirmed
     .filter((r) => r.status === 'CONFIRMED' && r.employeeId != null)
     .map((r) => r.employeeId as number);
-  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => selected.includes(id));
-  const canProcess = open && selected.length > 0 && !processing;
+  // 재조회로 선택 불가가 된 사원은 선택에서 자동으로 빠진다
+  const chosen = selected.filter((id) => selectableIds.includes(id));
+  const allSelected = selectableIds.length > 0 && selectableIds.every((id) => chosen.includes(id));
+  const busy = loading || processing;
+  const tooMany = chosen.length > MAX_BATCH;
+  const canProcess = open && chosen.length > 0 && !tooMany && !busy;
 
   const toggle = (id: number) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -71,9 +77,11 @@ export function RosterPage({ sessionId }: { sessionId: number }) {
   };
 
   const process = async (outcome: CompletionRequestOutcomeEnum) => {
+    if (busyRef.current) return; // 이중 클릭 방지
+    busyRef.current = true;
     setResult(undefined);
     try {
-      const res = await complete(selected, outcome);
+      const res = await complete(chosen, outcome);
       const failed = res.failed ?? [];
       setResult({
         severity: failed.length > 0 ? 'warning' : 'success',
@@ -85,6 +93,7 @@ export function RosterPage({ sessionId }: { sessionId: number }) {
     } catch (e) {
       setResult({ severity: 'error', lines: [apiServerMessage(e, '처리하지 못했습니다.')] });
     }
+    busyRef.current = false;
     setSelected([]);
     reload();
   };
@@ -112,20 +121,22 @@ export function RosterPage({ sessionId }: { sessionId: number }) {
       <Typography variant="h6" component="h2">
         확정자 ({confirmed.length}명)
       </Typography>
+      {error != null && <Alert severity="error">{apiServerMessage(error, '명단을 다시 불러오지 못했습니다.')}</Alert>}
+      {tooMany && <Alert severity="warning">한 번에 100명까지 처리할 수 있습니다.</Alert>}
       {result && (
         <Alert severity={result.severity} onClose={() => setResult(undefined)}>
-          {result.lines.map((line) => (
-            <div key={line}>{line}</div>
+          {result.lines.map((line, i) => (
+            <div key={`${i}-${line}`}>{line}</div>
           ))}
         </Alert>
       )}
       {!open && <Alert severity="info">수료 처리는 회차 시작일부터 할 수 있습니다.</Alert>}
       <Stack direction="row" spacing={1}>
         <Button variant="contained" disabled={!canProcess} onClick={() => process('COMPLETED')}>
-          선택한 {selected.length}명 수료 처리
+          선택한 {chosen.length}명 수료 처리
         </Button>
         <Button variant="outlined" color="error" disabled={!canProcess} onClick={() => process('INCOMPLETE')}>
-          선택한 {selected.length}명 미수료 처리
+          선택한 {chosen.length}명 미수료 처리
         </Button>
       </Stack>
       {confirmed.length === 0 ? (
@@ -138,8 +149,8 @@ export function RosterPage({ sessionId }: { sessionId: number }) {
                 <Checkbox
                   inputProps={{ 'aria-label': '전체 선택' }}
                   checked={allSelected}
-                  indeterminate={selected.length > 0 && !allSelected}
-                  disabled={selectableIds.length === 0}
+                  indeterminate={chosen.length > 0 && !allSelected}
+                  disabled={busy || selectableIds.length === 0}
                   onChange={toggleAll}
                 />
               </TableCell>
@@ -154,9 +165,9 @@ export function RosterPage({ sessionId }: { sessionId: number }) {
               <TableRow key={r.enrollmentId}>
                 <TableCell padding="checkbox">
                   <Checkbox
-                    inputProps={{ 'aria-label': `${r.name ?? UNKNOWN} 선택` }}
-                    checked={r.employeeId != null && selected.includes(r.employeeId)}
-                    disabled={r.status !== 'CONFIRMED' || r.employeeId == null}
+                    inputProps={{ 'aria-label': `${r.name ?? r.employeeNo ?? `사원 ${r.employeeId}`} 선택` }}
+                    checked={r.employeeId != null && chosen.includes(r.employeeId)}
+                    disabled={busy || r.status !== 'CONFIRMED' || r.employeeId == null}
                     onChange={() => r.employeeId != null && toggle(r.employeeId)}
                   />
                 </TableCell>

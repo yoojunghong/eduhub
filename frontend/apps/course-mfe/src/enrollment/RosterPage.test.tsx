@@ -122,3 +122,70 @@ test('대기자가 없으면 안내 문구를 보여 준다', async () => {
 
   expect(await screen.findByText('대기자가 없습니다.')).toBeInTheDocument();
 });
+
+test('101명을 선택하면 처리 버튼을 막고 안내한다', async () => {
+  const many = Array.from({ length: 101 }, (_, i) => entry(i + 1));
+  roster.mockResolvedValue({ data: { ...base, confirmed: many, waiting: [] } });
+  renderPage();
+
+  await screen.findByText('확정자 (101명)');
+  fireEvent.click(screen.getByRole('checkbox', { name: '전체 선택' }));
+  expect(screen.getByText('한 번에 100명까지 처리할 수 있습니다.')).toBeInTheDocument();
+  expect(screen.getByRole('button', { name: '선택한 101명 수료 처리' })).toBeDisabled();
+  fireEvent.click(screen.getByRole('checkbox', { name: '사원101 선택' }));
+  expect(screen.getByRole('button', { name: '선택한 100명 수료 처리' })).toBeEnabled();
+});
+
+test('처리 후 재조회가 실패해도 명단과 결과 안내는 남고 오류는 따로 보인다', async () => {
+  complete.mockResolvedValue({ data: { processed: [1], failed: [{ employeeId: 99, reason: 'NOT_ENROLLED' }] } });
+  roster.mockResolvedValueOnce({ data: base }).mockRejectedValueOnce(new Error('500'));
+  renderPage();
+
+  await screen.findByText('확정자 (4명)');
+  fireEvent.click(screen.getByRole('checkbox', { name: '사원1 선택' }));
+  fireEvent.click(screen.getByRole('button', { name: '선택한 1명 수료 처리' }));
+
+  expect(await screen.findByText('명단을 다시 불러오지 못했습니다.')).toBeInTheDocument();
+  expect(screen.getByText('확정자 (4명)')).toBeInTheDocument();
+  expect(screen.getByText('1명 처리했습니다.')).toBeInTheDocument();
+  expect(screen.getByText('사원 99: 이 회차 신청 내역 없음')).toBeInTheDocument(); // 이름 없으면 사원 ID
+});
+
+test('재조회 중에는 체크박스와 버튼을 막고, 결과 안내는 재조회 뒤에도 남는다', async () => {
+  complete.mockResolvedValue({ data: { processed: [1], failed: [{ employeeId: 2, reason: 'NOT_CONFIRMED' }] } });
+  let finish: (v: unknown) => void = () => {};
+  roster.mockResolvedValueOnce({ data: base }).mockReturnValueOnce(new Promise((r) => (finish = r)));
+  renderPage();
+
+  await screen.findByText('확정자 (4명)');
+  fireEvent.click(screen.getByRole('checkbox', { name: '사원1 선택' }));
+  fireEvent.click(screen.getByRole('button', { name: '선택한 1명 수료 처리' }));
+
+  expect(await screen.findByText('사원2: 확정 상태가 아님')).toBeInTheDocument();
+  expect(screen.getByRole('checkbox', { name: '사원2 선택' })).toBeDisabled(); // 재조회 중
+  finish({ data: base });
+  await waitFor(() => expect(screen.getByRole('checkbox', { name: '사원2 선택' })).toBeEnabled());
+  expect(screen.getByText('1명 처리했습니다.')).toBeInTheDocument();
+});
+
+test('처리 중 이중 클릭해도 complete는 한 번만 부른다', async () => {
+  let finish: (v: unknown) => void = () => {};
+  complete.mockReturnValue(new Promise((r) => (finish = r)));
+  renderPage();
+
+  await screen.findByText('확정자 (4명)');
+  fireEvent.click(screen.getByRole('checkbox', { name: '사원1 선택' }));
+  const button = screen.getByRole('button', { name: '선택한 1명 수료 처리' });
+  fireEvent.click(button);
+  fireEvent.click(button);
+
+  expect(complete).toHaveBeenCalledTimes(1);
+  finish({ data: { processed: [1], failed: [] } });
+  expect(await screen.findByText('1명 처리했습니다.')).toBeInTheDocument();
+});
+
+test('이름이 없는 사원의 체크박스 라벨에 "사원 {id}"가 들어간다', async () => {
+  renderPage();
+
+  expect(await screen.findByRole('checkbox', { name: '사원 4 선택' })).toBeInTheDocument();
+});

@@ -25,3 +25,13 @@ test('실패하면 error를 준다', async () => {
   await waitFor(() => expect(result.current.error).toBeDefined());
   expect(result.current.loading).toBe(false);
 });
+
+test('재조회가 실패해도 이전 data는 남기고 error를 준다', async () => {
+  roster.mockResolvedValueOnce({ data: { sessionId: 10 } }).mockRejectedValueOnce(new Error('500'));
+  const { result } = renderHook(() => useRoster(10));
+  await waitFor(() => expect(result.current.data?.sessionId).toBe(10));
+
+  act(() => result.current.reload());
+  await waitFor(() => expect(result.current.error).toBeDefined());
+  expect(result.current.data?.sessionId).toBe(10);
+});
