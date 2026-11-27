@@ -287,6 +287,62 @@ class EnrollmentRepositoryTest {
   }
 
   @Test
+  @DisplayName("대기 순번은 다른 회차의 앞선 대기자와 내 뒤 대기자를 세지 않는다")
+  void waitingNumber_ignoresOtherSessionAndLaterWaiters() {
+    Course c1 = newCourse();
+    Course c2 = courseRepository.save(new Course("JPA 실전", "BACKEND", "심화"));
+    CourseSession other = newSession(c2);
+    CourseSession session = newSession(c1);
+    Employee me = newEmployee("E2001", "나");
+    Employee later = newEmployee("E2002", "뒤");
+    Employee otherEmp = newEmployee("E2003", "다른회차");
+    // 다른 회차의 대기 신청이 id가 더 작다
+    enrollmentRepository.save(Enrollment.waiting(other, otherEmp.getId(), NOW));
+    Enrollment mine = enrollmentRepository.save(Enrollment.waiting(session, me.getId(), NOW));
+    enrollmentRepository.saveAndFlush(Enrollment.waiting(session, later.getId(), NOW));
+
+    List<MyEnrollmentRow> myRows = enrollmentRepository.findMyEnrollments(me.getId(), null);
+    List<RosterRow> roster =
+        enrollmentRepository.findRoster(session.getId(), List.of(EnrollmentStatus.WAITING));
+
+    assertThat(myRows).hasSize(1);
+    assertThat(myRows.get(0).waitingNumber()).isEqualTo(1L);
+    assertThat(roster)
+        .extracting(RosterRow::enrollmentId, RosterRow::waitingNumber)
+        .startsWith(org.assertj.core.groups.Tuple.tuple(mine.getId(), 1L));
+    assertThat(roster).extracting(RosterRow::waitingNumber).containsExactly(1L, 2L);
+  }
+
+  @Test
+  @DisplayName("명단 확정 목록은 확정·수료·미수료를 섞어 신청 순으로 돌려준다")
+  void findRoster_mixedConfirmedStatusesInEnrollmentOrder() {
+    CourseSession session = newSession(newCourse());
+    Enrollment a = enrollmentRepository.save(Enrollment.confirm(session, 1L, NOW));
+    Enrollment b = enrollmentRepository.save(Enrollment.confirm(session, 2L, NOW));
+    Enrollment c = enrollmentRepository.save(Enrollment.confirm(session, 3L, NOW));
+    Enrollment canceled = enrollmentRepository.save(Enrollment.confirm(session, 4L, NOW));
+    enrollmentRepository.saveAndFlush(Enrollment.waiting(session, 5L, NOW));
+    setStatus(a, "COMPLETED");
+    setStatus(b, "INCOMPLETE");
+    setStatus(canceled, "CANCELED");
+
+    List<RosterRow> rows =
+        enrollmentRepository.findRoster(
+            session.getId(),
+            List.of(
+                EnrollmentStatus.CONFIRMED,
+                EnrollmentStatus.COMPLETED,
+                EnrollmentStatus.INCOMPLETE));
+
+    assertThat(rows)
+        .extracting(RosterRow::enrollmentId, RosterRow::status)
+        .containsExactly(
+            org.assertj.core.groups.Tuple.tuple(a.getId(), EnrollmentStatus.COMPLETED),
+            org.assertj.core.groups.Tuple.tuple(b.getId(), EnrollmentStatus.INCOMPLETE),
+            org.assertj.core.groups.Tuple.tuple(c.getId(), EnrollmentStatus.CONFIRMED));
+  }
+
+  @Test
   @DisplayName("사원 행이 없는 신청도 명단에 나온다 (사번·이름 null)")
   void findRoster_includesEnrollmentWithoutEmployeeRow() {
     CourseSession session = newSession(newCourse());
