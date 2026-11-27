@@ -96,7 +96,7 @@ test('대화상자에서 닫으면 취소하지 않는다', async () => {
 test('취소가 409이면 서버 메시지를 안내하고 다시 조회한다', async () => {
   cancel.mockRejectedValue(
     Object.assign(new Error('409'), {
-      response: { status: 409, data: { code: 'CANCEL_PERIOD_ENDED', message: '시작일 전날까지만 취소할 수 있습니다.' } },
+      response: { status: 409, data: { code: 'CANCEL_PERIOD_ENDED', message: '신청 id=31 은 취소할 수 없습니다.' } },
     }),
   );
   renderPage();
@@ -106,7 +106,7 @@ test('취소가 409이면 서버 메시지를 안내하고 다시 조회한다',
   fireEvent.click(screen.getByRole('button', { name: 'JPA 실전 신청 취소' }));
   fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '신청 취소' }));
 
-  expect(await screen.findByRole('alert')).toHaveTextContent('시작일 전날까지만 취소할 수 있습니다.');
+  expect(await screen.findByRole('alert')).toHaveTextContent('취소 기간이 지났습니다. 회차 시작 전날까지 취소할 수 있습니다.');
   await waitFor(() => expect(myEnrollments.mock.calls.length).toBeGreaterThan(calls));
 });
 
@@ -196,4 +196,19 @@ test('확인 버튼을 두 번 눌러도 취소는 한 번만 보낸다', async 
 
   await screen.findByText('신청을 취소했습니다.');
   expect(cancel).toHaveBeenCalledTimes(1);
+});
+
+test('다시 조회가 실패하면 기존 행은 남기고 오류를 따로 안내한다', async () => {
+  cancel.mockResolvedValue({ data: {} });
+  renderPage();
+  await screen.findByText('대기 2번');
+  myEnrollments.mockRejectedValue(new Error('500'));
+
+  fireEvent.click(screen.getByRole('button', { name: 'JPA 실전 신청 취소' }));
+  fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: '신청 취소' }));
+
+  await waitFor(() =>
+    expect(screen.getAllByRole('alert').some((a) => a.textContent === '신청 내역을 다시 불러오지 못했습니다.')).toBe(true),
+  );
+  expect(screen.getByRole('link', { name: 'JPA 실전' })).toBeInTheDocument();
 });

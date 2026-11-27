@@ -14,9 +14,7 @@ import {
 } from '@mui/material';
 import { useState } from 'react';
 import { useCourse } from '../hooks/useCourse';
-import { EnrollInProgressError, useEnroll } from '../enrollment/hooks/useEnroll';
-import { EnrollButton, enrollMode } from '../enrollment/EnrollButton';
-import { apiErrorMessage } from '../api/apiError';
+import { EnrollButton, SessionStatusChip, type EnrollNotice } from '../enrollment/EnrollButton';
 
 function BackToList() {
   return (
@@ -39,32 +37,8 @@ export function CourseNotFound() {
 /** 과정 상세와 회차 목록(FR-02). */
 export function CourseDetailPage({ id }: { id: number }) {
   const { data, loading, error, notFound, reload } = useCourse(id);
-  const { enroll, enrollingSessionId } = useEnroll();
-  const [result, setResult] = useState<{ severity: 'success' | 'info' | 'error'; message: string }>();
-
-  const apply = async (sessionId: number) => {
-    setResult(undefined);
-    try {
-      const enrollment = await enroll(sessionId);
-      setResult(
-        enrollment.status === 'WAITING'
-          ? {
-              severity: 'info',
-              message:
-                enrollment.waitingNumber != null
-                  ? `대기 ${enrollment.waitingNumber}번으로 등록되었습니다.`
-                  : '대기자로 등록되었습니다.',
-            }
-          : { severity: 'success', message: '수강 신청이 확정되었습니다.' },
-      );
-      reload(); // 남은 자리를 새로 보여 준다
-    } catch (e) {
-      // 진행 중 두 번째 클릭: 첫 요청이 처리 중이므로 알림·새로 고침 없이 무시한다
-      if (e instanceof EnrollInProgressError) return;
-      setResult({ severity: 'error', message: apiErrorMessage(e, '신청하지 못했습니다.') });
-      reload(); // 실패(409·503 등) 뒤에도 남은 자리·종료 상태를 새로 보여 준다
-    }
-  };
+  const [enrolling, setEnrolling] = useState(false);
+  const [result, setResult] = useState<EnrollNotice>();
 
   if (loading && !data) return <CircularProgress />;
   if (notFound) return <CourseNotFound />;
@@ -114,8 +88,6 @@ export function CourseDetailPage({ id }: { id: number }) {
           </TableHead>
           <TableBody>
             {sessions.map((s) => {
-              const closed = s.status === 'CLOSED';
-              const mode = enrollMode(s);
               return (
                 <TableRow key={s.id}>
                   <TableCell>{s.startDate}</TableCell>
@@ -123,22 +95,16 @@ export function CourseDetailPage({ id }: { id: number }) {
                   <TableCell align="right">{s.capacity}</TableCell>
                   <TableCell align="right">{s.remainingSeats}</TableCell>
                   <TableCell>
-                    {closed ? (
-                      <Chip size="small" label="종료" />
-                    ) : mode === 'FULL' ? (
-                      <Chip size="small" color="warning" label="마감" />
-                    ) : mode === 'WAITLIST' ? (
-                      <Chip size="small" color="warning" variant="outlined" label="대기 가능" />
-                    ) : (
-                      <Chip size="small" color="success" label="신청 가능" />
-                    )}
+                    <SessionStatusChip session={s} />
                   </TableCell>
                   <TableCell align="right">
                     <EnrollButton
                       session={s}
                       courseClosed={data.status === 'CLOSED'}
-                      busy={enrollingSessionId !== undefined}
-                      onEnroll={apply}
+                      busy={enrolling}
+                      onBusyChange={setEnrolling}
+                      onResult={setResult}
+                      onEnrolled={reload}
                     />
                   </TableCell>
                 </TableRow>

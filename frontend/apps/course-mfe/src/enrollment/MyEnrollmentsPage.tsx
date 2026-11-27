@@ -125,9 +125,12 @@ export function MyEnrollmentsPage() {
           {result.message}
         </Alert>
       )}
+      {error != null && data && (
+        <Alert severity="error">{apiServerMessage(error, '신청 내역을 다시 불러오지 못했습니다.')}</Alert>
+      )}
       {loading && !data ? (
         <CircularProgress aria-label="불러오는 중" />
-      ) : error ? (
+      ) : error != null && !data ? (
         <Alert severity="error">신청 내역을 불러오지 못했습니다.</Alert>
       ) : rows.length === 0 ? (
         <Typography color="text.secondary">신청 내역이 없습니다.</Typography>

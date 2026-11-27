@@ -1,8 +1,8 @@
 import { useEffect } from 'react';
-import { act, fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { Layout } from './Layout';
-import { AuthProvider } from './auth/AuthContext';
+import { AuthProvider, useAuth } from './auth/AuthContext';
 import { authApi } from './api/clients';
 import { tokenStore } from './api/tokenStore';
 import { routerFuture } from './routerFuture';
@@ -122,4 +122,73 @@ describe('공개 화면에서 토큰이 만료되면', () => {
 
     expect(mounts).toBe(1);
   });
+});
+
+describe('만료 안내', () => {
+  const expire = () => act(() => void window.dispatchEvent(new Event(UNAUTHORIZED_EVENT)));
+  const text = '로그인이 만료되었습니다. 다시 로그인해 주세요.';
+
+  test('공개 화면에서 만료되면 상단에 안내와 로그인 링크를 보이고, 닫을 수 있다', async () => {
+    loginAs({ name: '홍길동', employeeNo: 'E1001', role: 'EMPLOYEE' });
+    renderAt('/courses/3');
+    await screen.findByText('홍길동 (E1001) · 사원');
+    expect(screen.queryByText(text, { exact: false })).not.toBeInTheDocument();
+
+    expire();
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent(text);
+    expect(within(alert).getByRole('link', { name: '로그인' })).toHaveAttribute('href', '/login');
+    fireEvent.click(within(alert).getByRole('button', { name: /close/i }));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
+  test('다시 로그인하면 안내가 사라진다', async () => {
+    function LoginButton() {
+      const { login } = useAuth();
+      return <button onClick={() => login('E1001', 'pw')}>다시 로그인</button>;
+    }
+    const login = authApi.login as jest.Mock;
+    login.mockResolvedValue({
+      data: { accessToken: 'new', user: { name: '홍길동', employeeNo: 'E1001', role: 'EMPLOYEE' } },
+    });
+    loginAs({ name: '홍길동', employeeNo: 'E1001', role: 'EMPLOYEE' });
+    render(
+      <MemoryRouter initialEntries={['/']} future={routerFuture}>
+        <AuthProvider>
+          <Layout>
+            <LoginButton />
+          </Layout>
+        </AuthProvider>
+      </MemoryRouter>,
+    );
+    await screen.findByText('홍길동 (E1001) · 사원');
+    expire();
+    await screen.findByRole('alert');
+
+    fireEvent.click(screen.getByRole('button', { name: '다시 로그인' }));
+
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
+  });
+});
+
+test('로그아웃하면 보호 화면에서 목록(/)으로 이동한다', async () => {
+  function Where() {
+    return <p data-testid="where">{useLocation().pathname}</p>;
+  }
+  loginAs({ name: '홍길동', employeeNo: 'E1001', role: 'EMPLOYEE' });
+  render(
+    <MemoryRouter initialEntries={['/my/enrollments']} future={routerFuture}>
+      <AuthProvider>
+        <Layout>
+          <Where />
+        </Layout>
+      </AuthProvider>
+    </MemoryRouter>,
+  );
+
+  fireEvent.click(await screen.findByRole('button', { name: '로그아웃' }));
+
+  expect(screen.getByTestId('where')).toHaveTextContent('/');
+  expect(screen.getByTestId('where').textContent).toBe('/');
 });

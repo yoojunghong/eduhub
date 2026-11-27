@@ -54,7 +54,7 @@
 |---|---|
 | 요청 | `{ "employeeIds": [1, 3], "outcome": "COMPLETED" }` — `employeeIds` 1~100개, 중복은 한 번으로, `outcome` 필수 |
 | 200 | `{ "processed": [1], "failed": [ { "employeeId": 3, "reason": "NOT_CONFIRMED" } ] }` |
-| 실패 사유 | `NOT_ENROLLED`(이 회차 진행 신청 없음), `NOT_CONFIRMED`(대기·취소), `ALREADY_PROCESSED`(이미 수료·미수료) |
+| 실패 사유 | `NOT_ENROLLED`(이 회차 신청이 없거나 취소만 있음), `NOT_CONFIRMED`(대기), `ALREADY_PROCESSED`(이미 수료·미수료) |
 | 400 `INVALID_REQUEST` | 빈 목록·100개 초과·outcome 없음 |
 | 404 `SESSION_NOT_FOUND` | |
 | 409 `COMPLETION_NOT_OPEN` | 질문 1의 시점 전 |
@@ -84,7 +84,7 @@ CREATE INDEX idx_enrollment_employee ON enrollment (employee_id, id DESC);
 ## 5. 트랜잭션·동시성
 ```
 RosterService.complete(sessionId, employeeIds, outcome)   @Transactional
- 1. 회차 행 FOR NO KEY UPDATE (FR-04와 같은 setLockTimeout + findByIdForUpdate)   ← "모든 상태 쓰기는 회차 락 먼저" 약속
+ 1. 회차 행 락 (FR-04와 같은 setLockTimeout + findByIdForUpdate)   ← "모든 상태 쓰기는 회차 락 먼저" 약속
  2. 없으면 SessionNotFound, 질문 1 시점 전이면 CompletionNotOpen(409)
  3. 이 회차의 해당 사원 신청을 한 번에 조회 (진행·처리 상태만)
  4. 사원마다 CONFIRMED면 complete()/markIncomplete(), 아니면 사유를 모은다
@@ -123,3 +123,5 @@ RosterService.complete(sessionId, employeeIds, outcome)   @Transactional
 | 관리자 대리 취소 (D-02) | 없음 | 다음 작업 |
 | 회차 종료일 | 없음 (질문 1) | 여러 날 교육이 생기면 종료일 컬럼 |
 | 내역 페이지 | 없음 | 수백 건이 되면 |
+| 여러 탭 | 다른 탭에서 다른 계정으로 로그인하면 이 탭은 이전 사용자 이름을 보여 주면서 새 토큰으로 요청한다(서버 권한은 토큰 기준이라 안전) | 필요하면 storage 이벤트로 동기화 |
+| `/me` 실패(네트워크·5xx) | 토큰은 남기고 화면만 비로그인으로 보인다 — 일시 장애에 로그아웃시키지 않기 위해 | |

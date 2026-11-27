@@ -99,7 +99,7 @@ test('선택 후 처리하면 complete를 부르고 결과(실패 사유)를 안
   expect(screen.getByRole('button', { name: '선택한 0명 수료 처리' })).toBeDisabled(); // 선택 초기화
 });
 
-test('미수료 처리는 INCOMPLETE로 부르고 409는 서버 메시지를 안내한다', async () => {
+test('미수료 처리는 INCOMPLETE로 부르고 409는 코드 문구를 안내한다', async () => {
   complete.mockRejectedValue({
     response: { status: 409, data: { code: 'COMPLETION_NOT_OPEN', message: '아직 시작 전입니다.' } },
   });
@@ -109,7 +109,7 @@ test('미수료 처리는 INCOMPLETE로 부르고 409는 서버 메시지를 안
   fireEvent.click(screen.getByRole('checkbox', { name: '사원1 선택' }));
   fireEvent.click(screen.getByRole('button', { name: '선택한 1명 미수료 처리' }));
 
-  expect(await screen.findByText('아직 시작 전입니다.')).toBeInTheDocument();
+  expect(await screen.findByText('수료 처리는 회차 시작일부터 할 수 있습니다.')).toBeInTheDocument();
   expect(complete).toHaveBeenCalledWith({
     sessionId: 10,
     completionRequest: { employeeIds: [1], outcome: 'INCOMPLETE' },

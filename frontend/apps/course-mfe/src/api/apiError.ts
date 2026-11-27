@@ -10,9 +10,8 @@ function readError(error: unknown): { status?: number; body?: ErrorResponse } {
   return { status: response?.status, body: response?.data };
 }
 
-/** 관리 화면에서 보여 줄 오류 문구. 백엔드 ErrorResponse.code로 분기한다. */
-export function apiErrorMessage(error: unknown, fallback = '요청을 처리하지 못했습니다.'): string {
-  const { status, body } = readError(error);
+/** 백엔드 ErrorResponse.code에 대응하는 화면 문구. 모르는 코드면 undefined. */
+function codeMessage(body?: ErrorResponse): string | undefined {
   switch (body?.code) {
     case 'COURSE_CLOSED':
       return '종료된 과정은 수정하거나 회차를 추가할 수 없습니다.';
@@ -30,15 +29,31 @@ export function apiErrorMessage(error: unknown, fallback = '요청을 처리하�
       return '신청이 몰려 있습니다. 잠시 후 다시 시도해 주세요.';
     case 'WAITLIST_FULL':
       return '대기 인원이 가득 찼습니다.';
+    case 'COMPLETION_NOT_OPEN':
+      return '수료 처리는 회차 시작일부터 할 수 있습니다.';
+    case 'ENROLLMENT_NOT_FOUND':
+      return '신청 내역을 찾을 수 없습니다.';
+    case 'ENROLLMENT_NOT_CANCELABLE':
+      return '이미 취소되었거나 처리된 신청입니다.';
+    case 'CANCEL_PERIOD_ENDED':
+      return '취소 기간이 지났습니다. 회차 시작 전날까지 취소할 수 있습니다.';
     case 'INVALID_REQUEST':
       return `입력값을 확인해 주세요. (${body.message ?? ''})`;
   }
+  return undefined;
+}
+
+/** 관리 화면에서 보여 줄 오류 문구. 백엔드 ErrorResponse.code로 분기한다. */
+export function apiErrorMessage(error: unknown, fallback = '요청을 처리하지 못했습니다.'): string {
+  const { status, body } = readError(error);
+  const byCode = codeMessage(body);
+  if (byCode) return byCode;
   if (status === 404) return '과정을 찾을 수 없습니다.';
   return fallback;
 }
 
-/** 서버가 보낸 ErrorResponse.message를 그대로 안내한다(취소 불가·기간 종료 등). 없으면 fallback. */
+/** 코드별 문구를 먼저 쓰고, 없을 때만 서버가 보낸 ErrorResponse.message를 안내한다. 둘 다 없으면 fallback. */
 export function apiServerMessage(error: unknown, fallback = '요청을 처리하지 못했습니다.'): string {
   const { body } = readError(error);
-  return body?.message || fallback;
+  return codeMessage(body) ?? (body?.message || fallback);
 }

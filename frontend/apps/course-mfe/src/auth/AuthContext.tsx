@@ -76,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setExpired(true);
         navigate('/login', { state: { from: current, expired: true }, replace: true });
       } else {
+        setExpired(true); // 상단에 만료 안내를 띄운다 (Layout)
         setEpoch((n) => n + 1); // 공개 화면: 그대로 두고 다시 불러오게 한다
       }
     };
