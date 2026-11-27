@@ -34,10 +34,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const locationRef = useRef(location);
   locationRef.current = location;
-  const redirecting = useRef(false); // 만료로 /login 에 보내는 중이면 원래 경로를 덮어쓰지 않는다
+  // 직전까지 로그인 상태였는가. 만료 이벤트는 한 번의 만료에 한 번만 처리한다(다음 로그인 전까지 추가 이벤트 무시).
+  const sessionActive = useRef(tokenStore.getToken() !== null);
 
+  // 로그인 화면을 벗어나면 만료 안내를 끈다
   useEffect(() => {
-    if (location.pathname !== '/login') redirecting.current = false;
+    if (location.pathname !== '/login') setExpired(false);
   }, [location.pathname]);
 
   // 새로고침 시 토큰이 있으면 /me 로 확인한다. 401이면 인터셉터가 토큰을 지우고 비로그인이 된다
@@ -52,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(response.data);
       })
       .catch(() => {
+        // 401이면 인터셉터가 토큰을 지웠다. 네트워크 오류·5xx면 토큰은 두고 user만 비운다
         if (!ignore) setUser(null);
       })
       .finally(() => {
@@ -65,10 +68,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const onUnauthorized = () => {
       setUser(null);
+      if (!sessionActive.current) return; // 로그인 상태가 아니었거나 이미 처리한 만료: 원래 경로 유지, 재마운트 없음
+      sessionActive.current = false;
       const current = locationRef.current;
-      if (current.pathname === '/login' || redirecting.current) return; // 두 번째 401: 원래 경로 유지
+      if (current.pathname === '/login') return;
       if (isProtectedPath(current.pathname)) {
-        redirecting.current = true;
         setExpired(true);
         navigate('/login', { state: { from: current, expired: true }, replace: true });
       } else {
@@ -86,11 +90,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     tokenStore.setToken(accessToken);
     tokenStore.setUser(me);
     setUser(me);
+    sessionActive.current = true;
     setExpired(false);
     setInitializing(false);
   }, []);
 
   const logout = useCallback(() => {
+    sessionActive.current = false;
     tokenStore.clear();
     setUser(null);
     setExpired(false);

@@ -36,3 +36,9 @@ export function apiErrorMessage(error: unknown, fallback = '요청을 처리하�
   if (status === 404) return '과정을 찾을 수 없습니다.';
   return fallback;
 }
+
+/** 서버가 보낸 ErrorResponse.message를 그대로 안내한다(취소 불가·기간 종료 등). 없으면 fallback. */
+export function apiServerMessage(error: unknown, fallback = '요청을 처리하지 못했습니다.'): string {
+  const { body } = readError(error);
+  return body?.message || fallback;
+}

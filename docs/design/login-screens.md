@@ -27,7 +27,8 @@
 ## 3. 로그인·토큰 (Step 14)
 | 요소 | 동작 |
 |---|---|
-| `api/tokenStore.ts` | `localStorage`의 `eduhub.accessToken`, `eduhub.user`. get/set/clear |
+| `api/tokenStore.ts` | `localStorage`의 `eduhub.accessToken`, `eduhub.user`. get/set/clear. **localStorage는 XSS가 생기면 토큰을 읽힐 수 있다** — 교육용 토이 범위에서 수용(React·MUI 기본 이스케이프). 운영 수준이면 HttpOnly 쿠키 + CSP로 바꾼다 |
+| 개발 모드 판별 | 설계의 `import.meta.env.DEV` 대신 `process.env.NODE_ENV === 'development'` — Jest(ts-jest, CommonJS)가 `import.meta`를 못 읽기 때문. Vite가 빌드 때 `'production'`으로 치환하므로 운영 빌드에는 안내가 없다(빌드 결과로 확인) |
 | `api/clients.ts` (기존 `courseApi.ts` 대체) | `new Configuration({ basePath: '', accessToken: () => tokenStore.get() ?? '' })`로 `courseApi`, `enrollmentApi`, `authApi`, `myEnrollmentApi`, `adminSessionApi` 생성(이름은 생성 결과에 맞춤). **생성 클라이언트 인스턴스는 여기서만** |
 | 401 처리 | 응답 인터셉터: 401이면 토큰을 지우고 `eduhub:unauthorized` 이벤트. **로그인 요청 자체의 401은 제외**(틀린 비밀번호). **403은 로그아웃하지 않는다**(권한 없음 안내만) |
 | `auth/AuthContext` | `user`, `login(no, pw)`, `logout()`, `expired`. 새로고침 시 토큰이 있으면 `/api/v1/me`로 확인(401이면 비로그인). `eduhub:unauthorized`를 받으면: 보호 화면이면 `/login`으로(원래 경로 보관, 만료 안내), 공개 화면이면 토큰만 지우고 화면이 다시 불러온다(공개 GET 만료 토큰 401 결정에 맞춤) |

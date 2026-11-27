@@ -1,5 +1,5 @@
 import axios, { AxiosError, type InternalAxiosRequestConfig } from 'axios';
-import { authApi, courseApi } from './clients';
+import { authApi } from './clients';
 import { tokenStore } from './tokenStore';
 import { registerUnauthorizedInterceptor, UNAUTHORIZED_EVENT } from './unauthorized';
 
@@ -42,7 +42,7 @@ test('401이면 토큰·사용자를 지우고 이벤트를 한 번 보낸다', 
   tokenStore.setUser({ employeeNo: 'E1001' });
   status = 401;
 
-  await expect(courseApi.getCourse({ id: 1 })).rejects.toBeDefined();
+  await expect(authApi.me()).rejects.toBeDefined();
 
   expect(tokenStore.getToken()).toBeNull();
   expect(tokenStore.getUser()).toBeNull();
@@ -67,4 +67,20 @@ test('403은 토큰을 유지하고 이벤트도 없다', async () => {
 
   expect(events).toBe(0);
   expect(tokenStore.getToken()).toBe('tok-1');
+});
+
+test('옛 토큰으로 보낸 요청의 401은 새 토큰을 지우지 않는다', async () => {
+  tokenStore.setToken('old');
+  status = 401;
+  const pending = authApi.me();
+  tokenStore.setToken('new'); // 요청 도중 재로그인
+  await expect(pending).rejects.toBeDefined();
+
+  expect(tokenStore.getToken()).toBe('new');
+  expect(events).toBe(0);
+});
+
+test('토큰이 없으면 Authorization 헤더를 보내지 않는다', async () => {
+  await authApi.me();
+  expect(lastConfig?.headers.has('Authorization')).toBe(false);
 });
