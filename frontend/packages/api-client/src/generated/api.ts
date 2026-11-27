@@ -23,6 +23,22 @@ import type { RequestArgs } from './base';
 // @ts-ignore
 import { BASE_PATH, COLLECTION_FORMATS, BaseAPI, RequiredError, operationServerMap } from './base';
 
+export interface CompletionRequest {
+    'employeeIds': Array<number>;
+    'outcome': CompletionRequestOutcomeEnum;
+}
+
+export const CompletionRequestOutcomeEnum = {
+    Completed: 'COMPLETED',
+    Incomplete: 'INCOMPLETE',
+} as const;
+
+export type CompletionRequestOutcomeEnum = typeof CompletionRequestOutcomeEnum[keyof typeof CompletionRequestOutcomeEnum];
+
+export interface CompletionResult {
+    'processed'?: Array<number>;
+    'failed'?: Array<Failure>;
+}
 export interface CourseCreateRequest {
     'title': string;
     'category': string;
@@ -67,6 +83,19 @@ export interface ErrorResponse {
     'code'?: string;
     'message'?: string;
 }
+export interface Failure {
+    'employeeId'?: number;
+    'reason'?: FailureReasonEnum;
+}
+
+export const FailureReasonEnum = {
+    NotEnrolled: 'NOT_ENROLLED',
+    NotConfirmed: 'NOT_CONFIRMED',
+    AlreadyProcessed: 'ALREADY_PROCESSED',
+} as const;
+
+export type FailureReasonEnum = typeof FailureReasonEnum[keyof typeof FailureReasonEnum];
+
 export interface HealthResponse {
     'status'?: string;
 }
@@ -86,11 +115,68 @@ export interface LoginResponse {
     'expiresIn'?: number;
     'user'?: CurrentUser;
 }
+export interface MyEnrollmentResponse {
+    'enrollmentId'?: number;
+    'sessionId'?: number;
+    'courseId'?: number;
+    'courseTitle'?: string;
+    'startDate'?: string;
+    'place'?: string;
+    'status'?: MyEnrollmentResponseStatusEnum;
+    'waitingNumber'?: number;
+    'enrolledAt'?: string;
+    'cancelable'?: boolean;
+}
+
+export const MyEnrollmentResponseStatusEnum = {
+    Confirmed: 'CONFIRMED',
+    Waiting: 'WAITING',
+    Canceled: 'CANCELED',
+    Completed: 'COMPLETED',
+    Incomplete: 'INCOMPLETE',
+} as const;
+
+export type MyEnrollmentResponseStatusEnum = typeof MyEnrollmentResponseStatusEnum[keyof typeof MyEnrollmentResponseStatusEnum];
+
 export interface PageResponseCourseSummaryResponse {
     'content'?: Array<CourseSummaryResponse>;
     'page'?: number;
     'size'?: number;
     'totalElements'?: number;
+}
+export interface RosterEntry {
+    'enrollmentId'?: number;
+    'employeeId'?: number;
+    'employeeNo'?: string;
+    'name'?: string;
+    'department'?: string;
+    'status'?: RosterEntryStatusEnum;
+    /**
+     * 대기자만 값이 있다 (확정·처리 행은 null)
+     */
+    'waitingNumber'?: number;
+}
+
+export const RosterEntryStatusEnum = {
+    Confirmed: 'CONFIRMED',
+    Waiting: 'WAITING',
+    Completed: 'COMPLETED',
+    Incomplete: 'INCOMPLETE',
+} as const;
+
+export type RosterEntryStatusEnum = typeof RosterEntryStatusEnum[keyof typeof RosterEntryStatusEnum];
+
+export interface RosterResponse {
+    'sessionId'?: number;
+    'courseId'?: number;
+    'courseTitle'?: string;
+    'startDate'?: string;
+    'place'?: string;
+    'capacity'?: number;
+    'sessionStatus'?: string;
+    'completionOpen'?: boolean;
+    'confirmed'?: Array<RosterEntry>;
+    'waiting'?: Array<RosterEntry>;
 }
 export interface SessionCreateRequest {
     'startDate': string;
@@ -113,6 +199,205 @@ export interface SessionResponse {
      */
     'waitlistLimit'?: number;
 }
+
+/**
+ * AdminSessionApi - axios parameter creator
+ */
+export const AdminSessionApiAxiosParamCreator = function (configuration?: Configuration) {
+    return {
+        /**
+         * 확정자를 수료(COMPLETED) 또는 미수료(INCOMPLETE)로 처리한다 (FR-08, D-05, D-09, D-10). 처리 가능한 사람만 처리하고 나머지는 failed에 사유(NOT_ENROLLED, NOT_CONFIRMED, ALREADY_PROCESSED)와 함께 돌려준다. 한 번 처리한 신청은 다시 바꾸지 않는다.
+         * @summary 수료 처리
+         * @param {number} sessionId 
+         * @param {CompletionRequest} completionRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        complete: async (sessionId: number, completionRequest: CompletionRequest, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'sessionId' is not null or undefined
+            assertParamExists('complete', 'sessionId', sessionId)
+            // verify required parameter 'completionRequest' is not null or undefined
+            assertParamExists('complete', 'completionRequest', completionRequest)
+            const localVarPath = `/api/v1/admin/sessions/{sessionId}/completions`
+                .replace('{sessionId}', encodeURIComponent(String(sessionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication bearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+            localVarHeaderParameter['Accept'] = '*/*';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(completionRequest, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 회차의 확정·처리(수료·미수료) 명단과 대기 명단을 준다 (FR-08). 취소는 제외. completionOpen은 지금 수료 처리가 가능한지(시작일 당일부터, D-09). 사원 정보가 없는 신청은 employeeNo·name이 null.
+         * @summary 회차 명단
+         * @param {number} sessionId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        roster: async (sessionId: number, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'sessionId' is not null or undefined
+            assertParamExists('roster', 'sessionId', sessionId)
+            const localVarPath = `/api/v1/admin/sessions/{sessionId}/roster`
+                .replace('{sessionId}', encodeURIComponent(String(sessionId)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication bearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            localVarHeaderParameter['Accept'] = '*/*';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+    }
+};
+
+/**
+ * AdminSessionApi - functional programming interface
+ */
+export const AdminSessionApiFp = function(configuration?: Configuration) {
+    const localVarAxiosParamCreator = AdminSessionApiAxiosParamCreator(configuration)
+    return {
+        /**
+         * 확정자를 수료(COMPLETED) 또는 미수료(INCOMPLETE)로 처리한다 (FR-08, D-05, D-09, D-10). 처리 가능한 사람만 처리하고 나머지는 failed에 사유(NOT_ENROLLED, NOT_CONFIRMED, ALREADY_PROCESSED)와 함께 돌려준다. 한 번 처리한 신청은 다시 바꾸지 않는다.
+         * @summary 수료 처리
+         * @param {number} sessionId 
+         * @param {CompletionRequest} completionRequest 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async complete(sessionId: number, completionRequest: CompletionRequest, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<CompletionResult>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.complete(sessionId, completionRequest, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AdminSessionApi.complete']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+        /**
+         * 회차의 확정·처리(수료·미수료) 명단과 대기 명단을 준다 (FR-08). 취소는 제외. completionOpen은 지금 수료 처리가 가능한지(시작일 당일부터, D-09). 사원 정보가 없는 신청은 employeeNo·name이 null.
+         * @summary 회차 명단
+         * @param {number} sessionId 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async roster(sessionId: number, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<RosterResponse>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.roster(sessionId, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['AdminSessionApi.roster']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
+    }
+};
+
+/**
+ * AdminSessionApi - factory interface
+ */
+export const AdminSessionApiFactory = function (configuration?: Configuration, basePath?: string, axios?: AxiosInstance) {
+    const localVarFp = AdminSessionApiFp(configuration)
+    return {
+        /**
+         * 확정자를 수료(COMPLETED) 또는 미수료(INCOMPLETE)로 처리한다 (FR-08, D-05, D-09, D-10). 처리 가능한 사람만 처리하고 나머지는 failed에 사유(NOT_ENROLLED, NOT_CONFIRMED, ALREADY_PROCESSED)와 함께 돌려준다. 한 번 처리한 신청은 다시 바꾸지 않는다.
+         * @summary 수료 처리
+         * @param {AdminSessionApiCompleteRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        complete(requestParameters: AdminSessionApiCompleteRequest, options?: RawAxiosRequestConfig): AxiosPromise<CompletionResult> {
+            return localVarFp.complete(requestParameters.sessionId, requestParameters.completionRequest, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * 회차의 확정·처리(수료·미수료) 명단과 대기 명단을 준다 (FR-08). 취소는 제외. completionOpen은 지금 수료 처리가 가능한지(시작일 당일부터, D-09). 사원 정보가 없는 신청은 employeeNo·name이 null.
+         * @summary 회차 명단
+         * @param {AdminSessionApiRosterRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        roster(requestParameters: AdminSessionApiRosterRequest, options?: RawAxiosRequestConfig): AxiosPromise<RosterResponse> {
+            return localVarFp.roster(requestParameters.sessionId, options).then((request) => request(axios, basePath));
+        },
+    };
+};
+
+/**
+ * Request parameters for complete operation in AdminSessionApi.
+ */
+export interface AdminSessionApiCompleteRequest {
+    readonly sessionId: number
+
+    readonly completionRequest: CompletionRequest
+}
+
+/**
+ * Request parameters for roster operation in AdminSessionApi.
+ */
+export interface AdminSessionApiRosterRequest {
+    readonly sessionId: number
+}
+
+/**
+ * AdminSessionApi - object-oriented interface
+ */
+export class AdminSessionApi extends BaseAPI {
+    /**
+     * 확정자를 수료(COMPLETED) 또는 미수료(INCOMPLETE)로 처리한다 (FR-08, D-05, D-09, D-10). 처리 가능한 사람만 처리하고 나머지는 failed에 사유(NOT_ENROLLED, NOT_CONFIRMED, ALREADY_PROCESSED)와 함께 돌려준다. 한 번 처리한 신청은 다시 바꾸지 않는다.
+     * @summary 수료 처리
+     * @param {AdminSessionApiCompleteRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     */
+    public complete(requestParameters: AdminSessionApiCompleteRequest, options?: RawAxiosRequestConfig) {
+        return AdminSessionApiFp(this.configuration).complete(requestParameters.sessionId, requestParameters.completionRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * 회차의 확정·처리(수료·미수료) 명단과 대기 명단을 준다 (FR-08). 취소는 제외. completionOpen은 지금 수료 처리가 가능한지(시작일 당일부터, D-09). 사원 정보가 없는 신청은 employeeNo·name이 null.
+     * @summary 회차 명단
+     * @param {AdminSessionApiRosterRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     */
+    public roster(requestParameters: AdminSessionApiRosterRequest, options?: RawAxiosRequestConfig) {
+        return AdminSessionApiFp(this.configuration).roster(requestParameters.sessionId, options).then((request) => request(this.axios, this.basePath));
+    }
+}
+
+
 
 /**
  * AuthApi - axios parameter creator
@@ -436,10 +721,6 @@ export const CourseApiAxiosParamCreator = function (configuration?: Configuratio
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
 
-            // authentication bearerAuth required
-            // http bearer authentication required
-            await setBearerAuthToObject(localVarHeaderParameter, configuration)
-
             localVarHeaderParameter['Accept'] = '*/*';
 
             setSearchParams(localVarUrlObj, localVarQueryParameter);
@@ -475,10 +756,6 @@ export const CourseApiAxiosParamCreator = function (configuration?: Configuratio
             const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
-
-            // authentication bearerAuth required
-            // http bearer authentication required
-            await setBearerAuthToObject(localVarHeaderParameter, configuration)
 
             if (keyword !== undefined) {
                 localVarQueryParameter['keyword'] = keyword;
@@ -949,6 +1226,45 @@ export const EnrollmentApiAxiosParamCreator = function (configuration?: Configur
                 options: localVarRequestOptions,
             };
         },
+        /**
+         * 로그인한 사원의 신청 내역을 최근 신청순으로 준다 (FR-07). status로 거를 수 있다. waitingNumber는 대기일 때만 값이 있고, cancelable은 확정·대기이면서 오늘이 시작일 전일 때 true (D-07).
+         * @summary 내 신청 내역
+         * @param {MyEnrollmentsStatusEnum} [status] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        myEnrollments: async (status?: MyEnrollmentsStatusEnum, options: RawAxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/api/v1/me/enrollments`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+            // authentication bearerAuth required
+            // http bearer authentication required
+            await setBearerAuthToObject(localVarHeaderParameter, configuration)
+
+            if (status !== undefined) {
+                localVarQueryParameter['status'] = status;
+            }
+
+            localVarHeaderParameter['Accept'] = '*/*';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
     }
 };
 
@@ -984,6 +1300,19 @@ export const EnrollmentApiFp = function(configuration?: Configuration) {
             const localVarOperationServerBasePath = operationServerMap['EnrollmentApi.enroll']?.[localVarOperationServerIndex]?.url;
             return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
         },
+        /**
+         * 로그인한 사원의 신청 내역을 최근 신청순으로 준다 (FR-07). status로 거를 수 있다. waitingNumber는 대기일 때만 값이 있고, cancelable은 확정·대기이면서 오늘이 시작일 전일 때 true (D-07).
+         * @summary 내 신청 내역
+         * @param {MyEnrollmentsStatusEnum} [status] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async myEnrollments(status?: MyEnrollmentsStatusEnum, options?: RawAxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<Array<MyEnrollmentResponse>>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.myEnrollments(status, options);
+            const localVarOperationServerIndex = configuration?.serverIndex ?? 0;
+            const localVarOperationServerBasePath = operationServerMap['EnrollmentApi.myEnrollments']?.[localVarOperationServerIndex]?.url;
+            return (axios, basePath) => createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration)(axios, localVarOperationServerBasePath || basePath);
+        },
     }
 };
 
@@ -1013,6 +1342,16 @@ export const EnrollmentApiFactory = function (configuration?: Configuration, bas
         enroll(requestParameters: EnrollmentApiEnrollRequest, options?: RawAxiosRequestConfig): AxiosPromise<EnrollmentResponse> {
             return localVarFp.enroll(requestParameters.sessionId, options).then((request) => request(axios, basePath));
         },
+        /**
+         * 로그인한 사원의 신청 내역을 최근 신청순으로 준다 (FR-07). status로 거를 수 있다. waitingNumber는 대기일 때만 값이 있고, cancelable은 확정·대기이면서 오늘이 시작일 전일 때 true (D-07).
+         * @summary 내 신청 내역
+         * @param {EnrollmentApiMyEnrollmentsRequest} requestParameters Request parameters.
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        myEnrollments(requestParameters: EnrollmentApiMyEnrollmentsRequest = {}, options?: RawAxiosRequestConfig): AxiosPromise<Array<MyEnrollmentResponse>> {
+            return localVarFp.myEnrollments(requestParameters.status, options).then((request) => request(axios, basePath));
+        },
     };
 };
 
@@ -1028,6 +1367,13 @@ export interface EnrollmentApiCancelRequest {
  */
 export interface EnrollmentApiEnrollRequest {
     readonly sessionId: number
+}
+
+/**
+ * Request parameters for myEnrollments operation in EnrollmentApi.
+ */
+export interface EnrollmentApiMyEnrollmentsRequest {
+    readonly status?: MyEnrollmentsStatusEnum
 }
 
 /**
@@ -1055,8 +1401,27 @@ export class EnrollmentApi extends BaseAPI {
     public enroll(requestParameters: EnrollmentApiEnrollRequest, options?: RawAxiosRequestConfig) {
         return EnrollmentApiFp(this.configuration).enroll(requestParameters.sessionId, options).then((request) => request(this.axios, this.basePath));
     }
+
+    /**
+     * 로그인한 사원의 신청 내역을 최근 신청순으로 준다 (FR-07). status로 거를 수 있다. waitingNumber는 대기일 때만 값이 있고, cancelable은 확정·대기이면서 오늘이 시작일 전일 때 true (D-07).
+     * @summary 내 신청 내역
+     * @param {EnrollmentApiMyEnrollmentsRequest} requestParameters Request parameters.
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     */
+    public myEnrollments(requestParameters: EnrollmentApiMyEnrollmentsRequest = {}, options?: RawAxiosRequestConfig) {
+        return EnrollmentApiFp(this.configuration).myEnrollments(requestParameters.status, options).then((request) => request(this.axios, this.basePath));
+    }
 }
 
+export const MyEnrollmentsStatusEnum = {
+    Confirmed: 'CONFIRMED',
+    Waiting: 'WAITING',
+    Canceled: 'CANCELED',
+    Completed: 'COMPLETED',
+    Incomplete: 'INCOMPLETE',
+} as const;
+export type MyEnrollmentsStatusEnum = typeof MyEnrollmentsStatusEnum[keyof typeof MyEnrollmentsStatusEnum];
 
 
 /**
@@ -1081,10 +1446,6 @@ export const HealthControllerApiAxiosParamCreator = function (configuration?: Co
             const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
             const localVarHeaderParameter = {} as any;
             const localVarQueryParameter = {} as any;
-
-            // authentication bearerAuth required
-            // http bearer authentication required
-            await setBearerAuthToObject(localVarHeaderParameter, configuration)
 
             localVarHeaderParameter['Accept'] = '*/*';
 
